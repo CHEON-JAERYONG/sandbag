@@ -1,0 +1,6 @@
+{
+  "name": "sandbag-tools",
+  "private": true,
+  "description": "쿵쾅 샌드백 브라우저 자동 테스트 (설치된 크롬 사용)",
+  "dependencies": { "playwright-core": "^1.49.1" }
+}

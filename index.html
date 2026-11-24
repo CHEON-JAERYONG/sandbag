@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>쿵쾅 샌드백</title>
+<meta name="description" content="친구 얼굴 샌드백을 다 같이 때리는 3D 스트레스 해소 게임">
+<meta name="theme-color" content="#07080f">
+<meta property="og:title" content="쿵쾅 샌드백 🥊">
+<meta property="og:description" content="같이 때리러 와! 펀치·발차기·꼬집기·꿀밤·뎀프시 롤">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=1.0.0">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥊</text></svg>">
+</head>
+<body>
+<div id="view"></div>
+<canvas id="hud"></canvas>
+<div id="layer"></div>
+
+<!-- 위쪽 -->
+<div id="hudTop" hidden>
+  <button id="btnPlayers" class="chip"><span id="netDot" class="dot bad"></span>👥 <b id="onlineN">1</b></button>
+  <div class="hp">
+    <div class="hp-head"><b id="hpName">샌드백</b><span id="hpRound">ROUND 1</span><span class="ko">🏆 KO <b id="koCount">0</b></span></div>
+    <div class="hp-bar"><i id="hpLag"></i><i id="hpFill"></i><em id="hpNum"></em></div>
+  </div>
+  <div class="top-r">
+    <button id="btnNextFace" class="chip" title="다음 얼굴 (N)">🔄</button>
+    <button id="btnShare" class="chip" title="링크 보내기">🔗</button>
+    <button id="btnSettings" class="chip" title="설정">⚙️</button>
+  </div>
+</div>
+<div id="feed"></div>
+<div id="combo" hidden></div>
+
+<!-- 아래쪽 -->
+<div id="hudBottom" hidden>
+  <div id="special">
+    <button id="superBtn" hidden>💥<span>필살!</span></button>
+    <button id="dempsey" style="--g:0"><i>🥊</i><span>뎀프시</span></button>
+  </div>
+  <div id="tools"></div>
+</div>
+
+<!-- 시작 -->
+<div id="start" class="modal show">
+  <div class="sheet start">
+    <div class="logo">쿵쾅<br><span>샌드백</span></div>
+    <p class="sub">펀치 · 발차기 · 싸대기 · 꿀밤 · 꼬집기 · 딱밤 · 뿅망치 · 간지럼<br>그리고 <b>뎀프시 롤</b> 🥊</p>
+    <p id="gymInfo" class="gym"></p>
+    <input id="nameIn" maxlength="10" placeholder="내 이름 (다른 사람에게 보여요)" autocomplete="off">
+    <button id="startBtn" class="bigbtn" disabled>🥊 체육관 들어가기</button>
+    <p class="tiny">같은 링크로 들어온 사람 모두 한 샌드백을 같이 때려요 · <span id="ver"></span></p>
+  </div>
+</div>
+
+<!-- 참가자 -->
+<div id="players" class="panel" hidden>
+  <div class="sheet-head"><h3>👥 지금 체육관</h3><button class="x" data-close>✕</button></div>
+  <ol id="playerList"></ol>
+  <p class="tiny">💥 총 데미지 · 🏆 막타 KO · 🔥 최고 콤보</p>
+</div>
+
+<!-- 설정 -->
+<div id="settings" class="modal" hidden>
+  <div class="sheet">
+    <div class="sheet-head"><h3>⚙️ 설정</h3><button class="x" data-close>✕</button></div>
+    <h4>😈 때릴 얼굴 <small>(누르면 바로 바뀜 · KO 때마다 다음 얼굴)</small></h4>
+    <div id="faceList"></div>
+    <div class="opts">
+      <label><input type="checkbox" id="optSound"> 🔊 효과음</label>
+      <label><input type="checkbox" id="optVoice"> 🗣️ 아파하는 목소리</label>
+    </div>
+    <h4>🏠 체육관</h4>
+    <p id="setGym" class="gym"></p>
+    <div class="row wrap">
+      <button class="btn" id="setShare">🔗 이 체육관 링크 보내기</button>
+      <button class="btn ghost" id="newGym">🔒 새 비밀 체육관 만들기</button>
+      <button class="btn ghost" id="pubGym">🌐 공개 체육관 가기</button>
+    </div>
+    <h4>🎮 조작</h4>
+    <ul class="help">
+      <li>도구를 고르고 샌드백을 <b>탭/클릭</b> — 위치마다 맞는 곳이 달라요 (턱=어퍼컷, 옆=훅)</li>
+      <li>🤏 꼬집기: 누른 채로 <b>쭉 끌었다 놓기</b> · 🪶 간지럼: <b>누르고 있기</b></li>
+      <li>🥊 <b>뎀프시</b>: 좌우로 흔들릴 때 탭! 끝에서 치면 PERFECT · 게이지가 차면 💥 필살</li>
+      <li>PC: 숫자 1~8 도구 · 스페이스 뎀프시 · F/J 훅 · N 다음 얼굴</li>
+    </ul>
+  </div>
+</div>
+
+<div id="toast" hidden></div>
+
+<script src="vendor/mqtt.min.js"></script>
+<script type="module" src="js/main.js?v=1.0.0"></script>
+</body>
+</html>

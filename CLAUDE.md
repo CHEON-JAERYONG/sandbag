@@ -1,0 +1,60 @@
+# 쿵쾅 샌드백 — Claude 인수인계 문서 (먼저 읽기)
+
+친구 얼굴 사진을 3D 샌드백 인형 머리에 입혀서, 같은 링크로 들어온 사람들이 다 같이 때리는 웹게임.
+- 실제 주소: https://cheon-jaeryong.github.io/sandbag/  (GitHub Pages, `main` 루트)
+- 저장소: https://github.com/CHEON-JAERYONG/sandbag (공개)
+- **친구 얼굴이 보이는 링크 = 주소 + `#k=열쇠`** (열쇠는 `faces-src/KEY.txt`, 깃 제외). 열쇠 없이 열면 만화 얼굴 + 공개 체육관.
+- 현재 버전: v1.0.0 (2026-11-24)
+
+## 사용자 선호
+- 한국어·쉬운 말. 확인한 것만 말하기. API 키/유료/가입 금지(공개 MQTT + GitHub Pages).
+- 고치면 같은 주소에 반영: 수정 → 테스트 → commit/push → 실제 주소 확인.
+- 커밋 작성자: `git -c user.name=CHEON-JAERYONG -c user.email=CHEON-JAERYONG@users.noreply.github.com commit ...`
+
+## 실제 사람 사진 보호 (꼭 유지)
+- 저장소는 공개라서 **사진 원본·정렬본·별명·열쇠는 절대 올리지 않음** → `faces-src/`(정렬된 jpg, faces.json 설정, KEY.txt)는 .gitignore.
+- 기본 얼굴은 `faces/pack.bin` = AES-GCM 암호문(base64). 브라우저가 주소의 `#k=` 열쇠로 풀어서 씀. `#` 뒤는 서버로 안 보내짐.
+- 게임 안에서 추가한 얼굴도 같은 열쇠로 암호화해서 MQTT 토픽 `.../f/<id>`에 남겨둠(retain). 체육관 토픽 이름도 열쇠의 해시(`gymIdOf`).
+
+## 파일 구조 (빌드 없음)
+| 파일 | 역할 |
+|---|---|
+| `index.html`, `style.css` | 화면(위: 체력바·참가자·설정 / 아래: 도구 8개·뎀프시·필살 / 시작창·설정창) |
+| `js/main.js` | 전체 흐름: 조작(탭·꼬집기 끌기·간지럼 누르기), 도구별 반응표 `FXT`, `myHit`→`impact`, 콤보·게이지, KO/라운드(얼굴 교대), 뎀프시롤 `D`, 카메라, 온라인 처리 |
+| `js/dummy.js` | 인형: 머리(구에 사진 투영 + 셰이더로 찡그림·`><`/X/^^/소용돌이 눈·눈물·멍·손자국·홍조), 바가지 머리, 맨투맨+샌드백 몸통(이름 글자), 흐느적 팔, 스프링 받침. 물리(몸 흔들림·목 휘청·찌그러짐), 맞은 곳 움푹(`addDeformer`), 꼬집어 늘리기(`grab/pull/release`), 혹(`addBump`) |
+| `js/attacker.js` | 1인칭: 권투 글러브 2개(직선·훅·어퍼·바디), 맨손(싸대기·꿀밤·딱밤·꼬집기·간지럼 — 손가락 관절), 발차기 다리, 뿅망치. 팔/다리는 화면 오른쪽 아래 밖에서 들어오게 `armQ` |
+| `js/fx.js` | 섬광·충격파·땀방울·집중선·잔상·의성어(퍽!)·데미지 숫자·말풍선·화면 흔들림 |
+| `js/sound.js` | 효과음 전부 WebAudio 합성 + 브라우저 한국어 음성(speechSynthesis)으로 비명 |
+| `js/net.js` | 공개 MQTT 2곳 동시 접속(emqx 8084, shiftr 443). 토픽 `cjr-sandbag/v1/<체육관>/m`(메시지) `/s`(상태 retain) `/f/<id>`(얼굴 retain) |
+| `js/faces.js` | 열쇠 읽기/새로 만들기, 암·복호화, `pack.bin` 읽기, 만화 얼굴, 사진 정렬(`normalizePhoto`) |
+| `js/editor.js` | 게임 안 "얼굴 추가": 사진 고르기 → 왼눈·오른눈·입 탭(확대/이동) → 얼굴 타원 조절 → 저장 |
+| `js/tools.js` | 도구 목록·대사 |
+| `vendor/` | three.js r170(module), mqtt 5.16.1 자체 보관 |
+
+## 온라인 규칙
+- 메시지: `hit`(때림: 부위·위치·방향·힘·데미지·라운드), `pinch`(꼬집기 늘린 벡터), `ko`(막타, 다음 얼굴), `face`(얼굴 바꾸기), `hb`(4초마다 이름·점수·라운드·체력), `dempsey`(필살 알림), `bye`.
+- 체력 1500은 각자 계산(받은 hit의 데미지를 뺌). 막타 친 사람이 `ko` + 상태(`s`, retain)를 보냄. 남의 타격으로 0이 되면 1.5초 기다렸다 대신 알림.
+- 늦게 온 사람은 retain 상태로 라운드·얼굴·KO 수를 맞춤. 게임 중 라운드가 앞선 상태가 먼저 오면 KO 장면 뒤에 적용.
+- 6초마다 아이디가 제일 작은 사람이 상태를 갱신.
+
+## 얼굴 바꾸기 (나중에 이미지만 바꾸고 싶을 때)
+1. **게임 안에서**(쉬움): ⚙️ 설정 → 얼굴 추가 → 사진 → 눈·눈·입 → 저장. 같은 링크 모두에게 바로 보임(배포 불필요). ✕로 지움.
+2. **기본 얼굴 묶음 교체**: `faces-src/faces.json`(source=사진 폴더, faces=[{file,id,name,eL,eR,m,mask}]) 수정 → `powershell -ExecutionPolicy Bypass -File tools/normalize-faces.ps1 -Preview`(미리보기 png로 점 위치 확인 후 지우기) → `node tools/make-pack.js` → commit/push. 열쇠는 KEY.txt 그대로라 링크 유지. 눈 위치는 사진을 격자 그려 확대해서 읽음.
+
+## 테스트
+```bash
+python -m http.server 8777 --bind 127.0.0.1     # 게임 폴더에서
+cd tools && npm install                         # 처음 한 번 (playwright-core, 설치된 크롬 사용)
+node tools/shot.js                              # 도구 8개 캡처 (PLAN=punch,kick BURST=3 DELAY=90 DEMPSEY=1 KO=1, 폰: TAG=m W=390 H=844 DPR=2 MOBILE=1)
+node tools/test-online.js                       # PC+폰+늦게 온 사람: 체력·KO·라운드 동기화 (테스트용 새 열쇠)
+node tools/test-face.js                         # 얼굴 추가 → 다른 화면에 도착
+# 실제 주소: BASE=https://cheon-jaeryong.github.io/sandbag/ node tools/test-online.js
+```
+캡처는 `tools/shots/`(깃 제외) — 직접 열어 눈으로 확인. 헤드리스는 swiftshader라 느림(실제 기기는 훨씬 부드러움).
+`shot.js`를 진짜 열쇠로 돌리면 실제 체육관 라운드/KO 기록이 바뀜 → KO 테스트는 `KEY=아무거나`로.
+
+## 디버그
+콘솔 `window.__sb` → `G`(상태), `D`(뎀프시), `dummy`, `atk`, `net`, `faces`, `selectTool()`, `setDempsey()`, `startSuper()`, `myHit()`.
+
+## 다음 아이디어
+- 도구 추가(물풍선·간지럼 깃털·전기), 맞은 횟수 랭킹 저장, 표정 사진 여러 장(맞을 때 다른 사진으로), 카톡 미리보기 이미지(og.png), 효과음 다양화.
