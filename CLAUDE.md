@@ -57,7 +57,7 @@ node tools/test-fall.js                         # KO 쓰러짐·배 맞기 자�
 ```
 캡처는 `tools/shots/`(깃 제외) — 직접 열어 눈으로 확인. 헤드리스는 swiftshader라 느림(실제 기기는 훨씬 부드러움).
 `shot.js`를 진짜 열쇠로 돌리면 실제 체육관 라운드/KO 기록이 바뀜 → KO 테스트는 `KEY=아무거나`로. 바뀌었으면 `node tools/reset-gym.js`(실제 주소에서 라운드1·KO0으로).
-버전 올릴 때: `js/main.js`의 `VERSION` + `index.html`의 `?v=` 2곳 + **모든 js의 import 경로 `?v=`** (한 줄: `for f in js/*.js; do sed -i -E "s#from '\./([a-z]+)\.js(\?v=[0-9.]+)?'#from './.js?v=새버전'#g" $f; done`) — 섞여서 옛 파일을 읽으면 깨짐.
+버전 올릴 때: `js/main.js`의 `VERSION` + `index.html`의 `?v=` 2곳 + **모든 js의 import 경로 `?v=`** (한 줄: `for f in js/*.js; do sed -i -E "s#from '\./([a-z]+)\.js(\?v=[0-9.]+)?'#from './\1.js?v=새버전'#g" $f; done`) — 섞여서 옛 파일을 읽으면 깨짐.
 
 ## 디버그
 콘솔 `window.__sb` → `G`(상태), `D`(뎀프시), `dummy`, `atk`, `net`, `faces`, `selectTool()`, `setDempsey()`, `startSuper()`, `myHit()`.
