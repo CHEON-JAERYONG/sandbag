@@ -4,7 +4,7 @@
 - 실제 주소: https://cheon-jaeryong.github.io/sandbag/  (GitHub Pages, `main` 루트)
 - 저장소: https://github.com/CHEON-JAERYONG/sandbag (공개)
 - **친구 얼굴이 보이는 링크 = 주소 + `#k=열쇠`** (열쇠는 `faces-src/KEY.txt`, 깃 제외). 열쇠 없이 열면 만화 얼굴 + 공개 체육관.
-- 현재 버전: v1.0.0 (2026-11-24)
+- 현재 버전: v1.0.1 (2026-11-24) — v1.0.1: 체육관 기록 초기화(`reset` 상태) 받기
 
 ## 사용자 선호
 - 한국어·쉬운 말. 확인한 것만 말하기. API 키/유료/가입 금지(공개 MQTT + GitHub Pages).
@@ -51,7 +51,8 @@ node tools/test-face.js                         # 얼굴 추가 → 다른 화�
 # 실제 주소: BASE=https://cheon-jaeryong.github.io/sandbag/ node tools/test-online.js
 ```
 캡처는 `tools/shots/`(깃 제외) — 직접 열어 눈으로 확인. 헤드리스는 swiftshader라 느림(실제 기기는 훨씬 부드러움).
-`shot.js`를 진짜 열쇠로 돌리면 실제 체육관 라운드/KO 기록이 바뀜 → KO 테스트는 `KEY=아무거나`로.
+`shot.js`를 진짜 열쇠로 돌리면 실제 체육관 라운드/KO 기록이 바뀜 → KO 테스트는 `KEY=아무거나`로. 바뀌었으면 `node tools/reset-gym.js`(실제 주소에서 라운드1·KO0으로).
+버전 올릴 때: `js/main.js`의 `VERSION` + `index.html`의 `?v=` 2곳(style.css, main.js). 다른 js는 ?v 없이 import라 GitHub Pages 캐시(최대 10분) 후 반영.
 
 ## 디버그
 콘솔 `window.__sb` → `G`(상태), `D`(뎀프시), `dummy`, `atk`, `net`, `faces`, `selectTool()`, `setDempsey()`, `startSuper()`, `myHit()`.
