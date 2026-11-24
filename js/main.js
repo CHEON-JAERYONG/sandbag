@@ -10,7 +10,7 @@ import * as Faces from './faces.js';
 import { openEditor } from './editor.js';
 import { TOOLS, TOOL_IDS, ICON, LINES } from './tools.js';
 
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 const HP_MAX = 1500;
 const $ = id => document.getElementById(id);
 const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -769,7 +769,7 @@ function isLeader() { return online().every(([id]) => me.id < id); }
 function onState(st) {
   if (typeof st.round !== 'number') return;
   // 게임 중에 라운드가 넘어간 상태가 먼저 오면 KO 장면이 먼저 나오도록 잠깐 기다림
-  if (G.started && performance.now() - G.joinT > 3000 && (G.inKO || st.round > G.round)) {
+  if (G.started && performance.now() - G.joinT > 3000 && !st.reset && (G.inKO || st.round > G.round)) {
     clearTimeout(G.stateTimer);
     G.stateTimer = setTimeout(() => { if (!G.inKO && st.round > G.round) applyState(st); }, G.inKO ? 5000 : 1600);
     return;
@@ -778,12 +778,13 @@ function onState(st) {
 }
 function applyState(st) {
   const fresh = Date.now() - (st.ts || 0) < 10 * 60 * 1000;
-  if (st.round > G.round || (st.round === G.round && !G.started)) {
+  if (st.round > G.round || (st.round === G.round && !G.started) || (st.reset && !G.inKO)) {
     G.round = st.round;
     G.kos = num(st.kos, 0, 1e7, G.kos);
     G.hp = fresh ? num(st.hp, 1, HP_MAX, HP_MAX) : HP_MAX;
     dummy.setHpRatio(G.hp / HP_MAX);
   } else if (st.round === G.round) G.kos = Math.max(G.kos, num(st.kos, 0, 1e7));
+  if (st.reset) G.kos = num(st.kos, 0, 1e7, 0);
   if (typeof st.face === 'string') applyFace(st.face, G.started && performance.now() - G.joinT > 3000);
   updateHp();
 }
