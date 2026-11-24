@@ -29,16 +29,17 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await page.screenshot({ path: path.join(out, tag + '-1-game.png') });
   const plan = (process.env.PLAN || 'punch,kick,slap,knuckle,pinch,flick,hammer,tickle').split(',');
   // 인형 얼굴/몸의 화면 좌표
-  const spot = async (part, x, y, z) => page.evaluate(([part, x, y, z]) => {
-    const sb = window.__sb; const v = sb.dummy.worldOf(part, new sb.THREE.Vector3(x, y, z));
-    const p = v.project(sb.stage.camera); const s = sb.stage.size;
+  // 'head' → 얼굴 사진 (u,v) 자리, 'body' → 이름 있는 몸 자리(gut/chest/sideL/sideR/thigh)
+  const spot = async (part, a, b) => page.evaluate(([part, a, b]) => {
+    const sb = window.__sb; const t = part === 'head' ? sb.dummy.headSpotUV(a, b) : sb.dummy.spot(a);
+    const p = t.point.clone().project(sb.stage.camera); const s = sb.stage.size;
     return [(p.x + 1) / 2 * s.w, (1 - p.y) / 2 * s.h];
-  }, [part, x, y, z]);
+  }, [part, a, b]);
   let i = 2;
   for (const tool of plan) {
     await page.evaluate(t => window.__sb.selectTool(t), tool);
-    const [fx, fy] = await spot('head', 0.16, -0.12, 0.5);
-    const [bx, by] = await spot('body', 0, 1.1, 0.42);
+    const [fx, fy] = await spot('head', 0.6, 0.6);
+    const [bx, by] = await spot('body', 'gut');
     const target = tool === 'kick' ? [bx, by] : [fx, fy];
     if (tool === 'pinch') {
       await page.mouse.move(fx, fy); await page.mouse.down();
@@ -75,12 +76,12 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     await page.screenshot({ path: path.join(out, `${tag}-${i++}-super-end.png`) });
   }
   if (process.env.KO) {
-    await page.evaluate(() => { const sb = window.__sb; sb.G.hp = 30; sb.selectTool('punch'); });
-    const [fx, fy] = await spot('head', 0.1, -0.1, 0.5);
+    await page.evaluate(() => { const sb = window.__sb; sb.G.hp = 5; sb.selectTool('punch'); });
+    const [fx, fy] = await spot('head', 0.55, 0.6);
     await page.mouse.click(fx, fy); await sleep(150); await page.mouse.click(fx, fy);
-    await sleep(900);
-    await page.screenshot({ path: path.join(out, `${tag}-${i++}-ko.png`) });
-    await sleep(4500);
+    for (let k = 0; k < 4; k++) { await sleep(800); await page.screenshot({ path: path.join(out, `${tag}-${i}-ko-${k}.png`) }); }
+    i++;
+    await sleep(2500);
     await page.screenshot({ path: path.join(out, `${tag}-${i++}-next.png`) });
   }
   console.log(JSON.stringify(await page.evaluate(() => ({ hp: window.__sb.G.hp, round: window.__sb.G.round, face: window.__sb.G.faceId, faces: window.__sb.faces.length, net: window.__sb.net && window.__sb.net.count() }))));

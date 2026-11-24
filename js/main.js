@@ -1,16 +1,16 @@
 // 쿵쾅 샌드백 — 화면 흐름 · 조작 · 타격 처리 · 뎀프시롤 · KO/라운드 · 온라인(모두 같은 체육관)
 import * as THREE from '../vendor/three.module.min.js';
-import { createStage, CAM_BASE, CAM_LOOK } from './stage.js';
-import { Dummy, headToUv } from './dummy.js';
-import { Attacker } from './attacker.js';
-import { FX } from './fx.js';
-import { Sound, hasKoreanVoice } from './sound.js';
-import { Net, rid } from './net.js';
-import * as Faces from './faces.js';
-import { openEditor } from './editor.js';
-import { TOOLS, TOOL_IDS, ICON, LINES } from './tools.js';
+import { createStage, CAM_BASE, CAM_LOOK, CAM_KO, LOOK_KO } from './stage.js?v=1.1.0';
+import { Dummy, headToUv, cartoonBody } from './dummy.js?v=1.1.0';
+import { Attacker } from './attacker.js?v=1.1.0';
+import { FX } from './fx.js?v=1.1.0';
+import { Sound, hasKoreanVoice } from './sound.js?v=1.1.0';
+import { Net, rid } from './net.js?v=1.1.0';
+import * as Faces from './faces.js?v=1.1.0';
+import { openEditor } from './editor.js?v=1.1.0';
+import { TOOLS, TOOL_IDS, ICON, LINES } from './tools.js?v=1.1.0';
 
-const VERSION = '1.0.1';
+const VERSION = '1.1.0';
 const HP_MAX = 1500;
 const $ = id => document.getElementById(id);
 const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -167,11 +167,7 @@ function selectTool(id) {
 }
 
 /* ================= 타격 공통 ================= */
-function zoneOf(part, lp) {
-  if (part === 'head') return (lp.y > 0.3 || (lp.y > 0.12 && lp.z < 0.25) || lp.z < -0.1) ? 'top' : 'face';
-  if (part === 'body') return lp.y < 0.75 ? 'low' : 'body';
-  return 'arm';
-}
+const zoneOf = (part, lp) => dummy.zoneOf(part, lp);
 function hitStop(s) { G.stopT = Math.max(G.stopT, s); }
 
 // 도구별 반응
@@ -182,7 +178,7 @@ const FXT = {
     shake: 0.09, stop: 0.065, burst: 1,
     react(h, z, side, uv) {
       if (z === 'face') {
-        dummy.express({ sqL: 1, sqR: 1, shut: h.power > 3.4 ? 1 : 0.55, mode: 1, mW: 0.6, mO: 0.8, flash: 0.32, flashCol: '#ff7a7a' }, 0.35);
+        dummy.express({ sqL: 1, sqR: 1, shut: h.power > 3.4 ? 1 : 0.55, mode: 1, mW: 0.6, mO: 0.8, flash: 0.16, flashCol: '#ff7a7a' }, 0.35);
         dummy.addBruise(uv, 0.055, 0.2);
         dummy.addSwell(side, 0.045);
         const e = side < 0 ? dummy.u.eyeL.value : dummy.u.eyeR.value;
@@ -203,7 +199,7 @@ const FXT = {
     icon: '💥', words: ['뻐어억!!!', '콰과광!!!'], color: '#ff4040',
     sound: () => 'kick', radius: () => 0.3, dent: 1.3, squash: () => 2, shake: 0.5, stop: 0.12, burst: 2.6, lines: 2,
     react(h, z, side, uv) {
-      dummy.express({ shut: 1, mode: 2, mO: 1, mW: 1, flash: 0.6, flashCol: '#ffffff' }, 1.2);
+      dummy.express({ shut: 1, mode: 2, mO: 1, mW: 1, flash: 0.3, flashCol: '#ffffff' }, 1.2);
       dummy.addSwell(0, 0.25); dummy.setDizzy(3);
       return LINES.heavy;
     }
@@ -212,7 +208,7 @@ const FXT = {
     icon: '🦵', words: ['뻐억!!', '쾅!!', '콰앙!', '퍼어억!'], color: '#ff7b2e',
     sound: () => 'kick', radius: () => 0.42, dent: 1.2, squash: () => 1.4, shake: 0.22, stop: 0.09, burst: 1.6, lines: 1.2,
     react(h, z, side, uv) {
-      dummy.express({ shut: 1, mode: 1, mO: 1, mW: 0.8, flash: 0.25, flashCol: '#ffd0a0' }, 0.6);
+      dummy.express({ shut: 1, mode: 1, mO: 1, mW: 0.8, flash: 0.14, flashCol: '#ffd0a0' }, 0.6);
       if (z === 'face') { dummy.addBruise(uv, 0.07, 0.35); dummy.addSwell(side, 0.1); }
       if (h.power > 5) dummy.setDizzy(1.2);
       return LINES.kick.concat(LINES.heavy);
@@ -223,7 +219,7 @@ const FXT = {
     sound: () => 'slap', radius: () => 0.2, dent: 0.45, squash: () => 0.3, headMul: 1.5, shake: 0.06, stop: 0.05, burst: 0.9,
     react(h, z, side, uv) {
       if (z === 'face' || z === 'top') {
-        dummy.express({ [side < 0 ? 'sqL' : 'sqR']: 1, shut: 1, mode: 1, mW: 1, mO: 0.4, flash: 0.35, flashCol: '#ff5a5a', blush: 0.6 }, 0.45);
+        dummy.express({ [side < 0 ? 'sqL' : 'sqR']: 1, shut: 1, mode: 1, mW: 1, mO: 0.4, flash: 0.16, flashCol: '#ff5a5a', blush: 0.6 }, 0.45);
         dummy.addHandPrint(uv, side * 0.35 + rand(-0.25, 0.25));
         dummy.addSwell(side, 0.035);
         return LINES.slap;
@@ -305,6 +301,12 @@ function impact(h) {
   const side = h.lp.x < 0 ? -1 : 1;
   const uv = h.part === 'head' ? headToUv(h.lp) : [0.5, 0.5];
   const lines = F.react(h, z, side, uv);
+  // 사람처럼 반사적으로 막거나 움켜쥠
+  if (h.tool !== 'tickle' && h.tool !== 'pinch') {
+    if (z === 'face' && Math.random() < 0.55) dummy.flinch('face', 0.35 + Math.random() * 0.25);
+    else if (z === 'gut' || z === 'low') dummy.flinch('gut', 0.6);
+    else if (z === 'top') dummy.flinch('head', 0.55);
+  } else if (h.tool === 'tickle' && Math.random() < 0.3) dummy.flinch(Math.random() < 0.5 ? 'gut' : 'out', 0.3);
   if (G.hp / HP_MAX < 0.25 && Math.random() < 0.4 && !G.inKO) say(LINES.low);
   else if (lines && (h.mine || Math.random() < 0.2)) say(lines);
 }
@@ -419,11 +421,11 @@ function setRay(e) {
 function pickTarget(e) {
   setRay(e);
   const hits = ray.intersectObjects(dummy.hitMeshes, false);
-  if (!hits.length) return null;
-  const h = hits[0];
-  const d = dummy.describeHit(h.object, h.point);
-  d.point = h.point.clone();
-  return d;
+  for (const h of hits) { // 사진의 투명한 곳은 건너뜀
+    const d = dummy.describeHit(h);
+    if (d) { d.point = h.point.clone(); return d; }
+  }
+  return null;
 }
 // 빗나갔을 때: 인형 앞 평면 위의 점
 function airPoint(e) {
@@ -433,13 +435,10 @@ function airPoint(e) {
   return ray.ray.intersectPlane(plane, p) ? p : dummy.headWorld();
 }
 const camPos = () => stage.camera.getWorldPosition(new THREE.Vector3());
-// 머리 꼭대기/이마 같은 정해진 자리
-function headSpot(x, y) {
-  const lp = V(clamp(x, -0.3, 0.3), y, 0);
-  const nx = lp.x / (0.5 * 1.075), ny = lp.y / (0.62 * 1.06);
-  lp.z = 0.56 * 1.05 * Math.sqrt(Math.max(0.03, 1 - nx * nx - ny * ny)) * (y > 0.45 ? 0.4 : 1);
-  return { part: 'head', lp, point: dummy.worldOf('head', lp) };
-}
+// 머리 꼭대기/이마 같은 정해진 자리 (얼굴 사진 기준 u,v)
+const headSpot = (u, v) => dummy.headSpotUV(clamp(u, 0.25, 0.75), clamp(v, 0.02, 0.95));
+const topV = () => (dummy.topV ?? 0.08);
+const uOf = t => t && t.part === 'head' ? headToUv(t.lp)[0] : 0.5;
 const crit = () => Math.random() < 0.1;
 
 let holdState = null; // 꼬집기·간지럼
@@ -468,9 +467,10 @@ function doPunch(t, e) {
   }
   const z = zoneOf(t.part, t.lp);
   let kind = 'straight';
-  if (z === 'face' && t.lp.y < -0.36) kind = 'upper';
-  else if (z === 'low' || (z === 'body' && Math.abs(t.lp.x) > 0.25)) kind = 'body';
-  else if (Math.abs(t.lp.x) > 0.24) kind = 'hook';
+  const huv = t.part === 'head' ? headToUv(t.lp) : null;
+  if (z === 'face' && huv[1] > dummy.u.mouthP.value.y + 0.02) kind = 'upper';
+  else if (z === 'gut' || z === 'low' || z === 'leg') kind = 'body';
+  else if (huv ? Math.abs(huv[0] - 0.5) > 0.17 : Math.abs(t.lp.x) > 0.5) kind = 'hook';
   const side = kind === 'hook' || kind === 'body' ? (t.lp.x > 0 ? 1 : -1) : 0;
   const lp = t.lp.clone(), part = t.part;
   atk.punch(t.point, {
@@ -488,23 +488,19 @@ function doPunch(t, e) {
   Sound.play('whoosh', { p: 0.5, vol: 0.5 });
 }
 function doKick(t, e) {
-  const target = t || pickBody(0.55);
+  const target = t || dummy.spot('gut');
   if (!atk.kick(target.point, () => {
     const dir = V(-0.75, 0.25, -0.62).normalize();
     const c = crit();
     myHit({ tool: 'kick', part: target.part, lp: target.lp, dir, power: (c ? 8 : 6), dmg: rand(32, 45) * (c ? 1.7 : 1), crit: c });
   })) return;
 }
-function pickBody(y) {
-  const lp = V(0.2, y, 0.5 * 0.8 * 0.98);
-  return { part: 'body', lp, point: dummy.worldOf('body', lp) };
-}
 function doSlap(t, e) {
   let target = t;
   if (!target || target.part !== 'head') {
     const r = stage.renderer.domElement.getBoundingClientRect();
     const sx = (e.clientX - r.left) / r.width < 0.5 ? -1 : 1;
-    target = headSpot(sx * 0.27, -0.18);
+    target = headSpot(0.5 + sx * 0.17, 0.63);
   }
   const side = target.lp.x >= 0 ? 1 : -1;
   atk.slap(target.point, side, () => {
@@ -514,23 +510,23 @@ function doSlap(t, e) {
   });
 }
 function doKnuckle(t) {
-  const x = t && t.part === 'head' ? t.lp.x * 0.6 : rand(-0.12, 0.12);
-  const target = headSpot(x, 0.58);
+  const u = t && t.part === 'head' ? 0.5 + (uOf(t) - 0.5) * 0.6 : 0.5 + rand(-0.08, 0.08);
+  const target = headSpot(u, topV() + 0.07);
   atk.knuckle(target.point, () => {
     const c = crit();
     myHit({ tool: 'knuckle', part: 'head', lp: target.lp, dir: V(0, -1, -0.15).normalize(), power: c ? 3.4 : 2.6, dmg: rand(14, 20) * (c ? 1.8 : 1), crit: c });
   });
 }
 function doFlick(t) {
-  const x = t && t.part === 'head' ? clamp(t.lp.x, -0.15, 0.15) : 0;
-  const target = headSpot(x, 0.2);
+  const u = t && t.part === 'head' ? clamp(uOf(t), 0.4, 0.6) : 0.5;
+  const target = headSpot(u, Math.max(topV() + 0.16, dummy.u.eyeL.value.y - 0.13));
   atk.flick(target.point, () => {
     const c = crit();
     myHit({ tool: 'flick', part: 'head', lp: target.lp, dir: V(0, 0.25, -1).normalize(), power: c ? 2.6 : 2.0, dmg: rand(8, 12) * (c ? 1.8 : 1), crit: c });
   });
 }
 function doHammer(t) {
-  const target = t && t.part === 'head' ? t : headSpot(t ? t.lp.x * 0.5 : 0, 0.5);
+  const target = t && t.part === 'head' ? t : headSpot(0.5 + rand(-0.06, 0.06), topV() + 0.1);
   atk.hammer(target.point, () => {
     const c = crit();
     myHit({ tool: 'hammer', part: target.part, lp: target.lp, dir: V(-0.2, -1, -0.2).normalize(), power: c ? 3.2 : 2.4, dmg: rand(10, 15) * (c ? 1.8 : 1), crit: c });
@@ -547,7 +543,7 @@ function startHold(kind, t, e) {
   if (!t) return;
   if (!atk.holdStart(kind, t.point)) return;
   holdState = { kind, t, anchor: t.point.clone(), start: performance.now(), max: 0, lastTick: 0, d: null, id: e.pointerId };
-  if (kind === 'pinch' && (t.part === 'head' || t.part === 'body')) {
+  if (kind === 'pinch' && (t.part === 'head' || t.part === 'body' || t.part === 'arm')) {
     holdState.d = dummy.grab(t.part, t.lp);
     Sound.play('pinch');
     const side = t.lp.x < 0 ? -1 : 1;
@@ -563,7 +559,7 @@ function onMove(e) {
     if (holdState.d) {
       const k = dummy.pull(holdState.d, p);
       holdState.max = Math.max(holdState.max, k);
-      atk.holdMove(dummy.partObj(holdState.t.part) === dummy.headGrp ? dummy.head.localToWorld(holdState.d.p.clone().add(holdState.d.vec.clone().multiplyScalar(holdState.d.a))) : dummy.bag.localToWorld(holdState.d.p.clone().add(holdState.d.vec.clone().multiplyScalar(holdState.d.a))));
+      atk.holdMove(dummy.grabWorld(holdState.d));
     }
   } else {
     const t = pickTarget(e);
@@ -596,11 +592,10 @@ function tickHold(dt) {
   if (hs.kind === 'pinch' && hs.d && hs.d.pullWorld) {
     // 잡아당기면 머리/몸이 끌려옴
     const isHead = hs.t.part === 'head';
-    const obj = isHead ? dummy.head : dummy.bag;
-    const P = obj.localToWorld(hs.d.p.clone());
+    const P = dummy.grabWorld(hs.d, false);
     const pivot = (isHead ? dummy.neck : dummy.body).getWorldPosition(new THREE.Vector3());
-    const tq = P.sub(pivot).cross(hs.d.pullWorld);
-    const S = isHead ? dummy.H : dummy.B, k = isHead ? 26 : 9;
+    const tq = P.sub(pivot).cross(hs.d.pullWorld).applyQuaternion(dummy.root.getWorldQuaternion(new THREE.Quaternion()).invert());
+    const S = isHead ? dummy.H : dummy.W, k = isHead ? 26 : 10;
     S.vx += tq.x * k * dt; S.vy += tq.y * k * dt; S.vz += tq.z * k * dt;
     const side = hs.t.lp.x < 0 ? -1 : 1;
     const st = hs.d.pullWorld.length();
@@ -632,11 +627,7 @@ function startSuper() {
   if (net) net.send({ t: 'dempsey', n: me.name });
   setTimeout(() => say(LINES.dempsey, true), 400);
 }
-function bodySideSpot(side) {
-  const y = rand(1.0, 1.3), th = side * 0.72, r = 0.52;
-  const lp = V(Math.sin(th) * r, y, Math.cos(th) * r * 0.8);
-  return { part: 'body', lp, point: dummy.worldOf('body', lp) };
-}
+const bodySideSpot = side => dummy.spot(side > 0 ? 'sideR' : 'sideL');
 function dempseyHook(auto) {
   const s = Math.sin(D.phase);
   const side = s >= 0 ? 1 : -1;
@@ -660,8 +651,7 @@ function dempseyHook(auto) {
   if (ok) Sound.play('whoosh', { p: 0.7, vol: 0.6 });
 }
 function finisher() {
-  const target = headSpot(0, -0.5);
-  target.lp.z = 0.42; target.point = dummy.worldOf('head', target.lp);
+  const target = headSpot(0.5, Math.min(0.9, dummy.u.mouthP.value.y + 0.1));
   atk.punch(target.point, {
     side: 1, kind: 'upper', speed: 0.8, onImpact: () => {
       myHit({ tool: 'finish', part: 'head', lp: target.lp, dir: V(0, 0.8, -0.6).normalize(), power: 9, dmg: 160, crit: true });
@@ -699,9 +689,11 @@ function updateDempsey(dt, sdt) {
 const cam = { weave: new THREE.Vector3(), roll: 0, ko: 0 };
 function updateCamera(dt) {
   const c = stage.camera;
-  cam.ko += ((G.inKO ? 1 : 0) - cam.ko) * (1 - Math.exp(-dt * 3));
-  const pos = CAM_BASE.clone().add(cam.weave).add(V(0, 0.2, -1.4).multiplyScalar(cam.ko));
-  const look = CAM_LOOK.clone().addScaledVector(cam.weave, 0.35).add(V(0, 0.5, 0).multiplyScalar(cam.ko));
+  // KO: 바닥에 쓰러진 모습을 위에서 내려다봄
+  const koT = G.inKO && dummy.B.x < -0.5 ? 1 : 0;
+  cam.ko += (koT - cam.ko) * (1 - Math.exp(-dt * 2.2));
+  const pos = CAM_BASE.clone().add(cam.weave).lerp(CAM_KO, cam.ko);
+  const look = CAM_LOOK.clone().addScaledVector(cam.weave, 0.35).lerp(LOOK_KO, cam.ko);
   const sh = fx.shakeOffset();
   if (sh) { pos.add(sh); look.add(sh.multiplyScalar(0.5)); }
   c.position.copy(pos);
@@ -726,9 +718,9 @@ function onMsg(d) {
 const num = (v, a, b, d = 0) => (typeof v === 'number' && isFinite(v) ? clamp(v, a, b) : d);
 const vec = (a, lim) => Array.isArray(a) && a.length === 3 ? V(num(a[0], -lim, lim), num(a[1], -lim, lim), num(a[2], -lim, lim)) : null;
 function onRemoteHit(d) {
-  if (!TOOL_IDS.has(d.k) || !['head', 'body', 'armL', 'armR'].includes(d.p)) return;
+  if (!TOOL_IDS.has(d.k) || !['head', 'body', 'arm'].includes(d.p)) return;
   if (d.r !== G.round) return;
-  const lp = vec(d.l, 3), dir = vec(d.d, 2);
+  const lp = vec(d.l, 8), dir = vec(d.d, 2);
   if (!lp || !dir || dir.lengthSq() < 1e-6) return;
   dir.normalize();
   const h = { tool: d.k, part: d.p, lp, dir, power: num(d.w, 0, 10, 2), dmg: Math.round(num(d.g, 0, 400)), crit: !!d.c, mine: false, name: cleanName(d.n) || '친구' };
@@ -738,12 +730,11 @@ function onRemoteHit(d) {
   applyDamage(h.dmg, d.from, h.name, false);
 }
 function onRemotePinch(d) {
-  if (d.r !== G.round || !['head', 'body'].includes(d.p)) return;
-  const lp = vec(d.l, 3), v = vec(d.v, 1);
+  if (d.r !== G.round || !['head', 'body', 'arm'].includes(d.p)) return;
+  const lp = vec(d.l, 8), v = vec(d.v, 1);
   if (!lp || !v) return;
   const g = dummy.grab(d.p, lp);
-  const obj = d.p === 'head' ? dummy.head : dummy.bag;
-  const target = obj.localToWorld(g.p.clone()).add(v);
+  const target = dummy.grabWorld(g, false).add(v);
   dummy.pull(g, target);
   setTimeout(() => dummy.release(g), 120 + num(d.s, 0, 1.2, 0.3) * 600);
 }
@@ -927,7 +918,9 @@ async function boot() {
   buildTools();
   atk.setGlovesHidden(true);
   bindUi();
-  const recs = await Faces.loadPack(key, 'faces/pack.bin?v=' + VERSION);
+  const pack = await Faces.loadPack(key, 'faces/pack.bin?v=' + VERSION);
+  const recs = pack.faces;
+  await dummy.setBody(pack.body || cartoonBody());
   const built = [];
   for (let i = 0; i < recs.length; i++) {
     try { const f = await Faces.buildFace(recs[i]); f.order = i; built.push(f); } catch (e) { console.warn(e); }

@@ -72,6 +72,22 @@ export async function buildFace(rec) {
   const g = c.getContext('2d', { willReadFrequently: true });
   g.drawImage(img, 0, 0);
   const W = c.width, H = c.height;
+  // 오려낸 투명도가 없는 사진(게임에서 추가한 얼굴)은 얼굴 타원으로 오려냄
+  if (!rec.alpha) {
+    const m = rec.mask || [0.5, 0.48, 0.28, 0.42];
+    const mc = document.createElement('canvas'); mc.width = W; mc.height = H;
+    const mg = mc.getContext('2d');
+    mg.translate(m[0] * W, m[1] * H); mg.scale(m[2] * W, m[3] * H);
+    const grd = mg.createRadialGradient(0, 0, 0.8, 0, 0, 1);
+    grd.addColorStop(0, 'rgba(0,0,0,1)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+    mg.fillStyle = grd; mg.beginPath(); mg.arc(0, 0, 1, 0, Math.PI * 2); mg.fill();
+    g.globalCompositeOperation = 'destination-in'; g.drawImage(mc, 0, 0); g.globalCompositeOperation = 'source-over';
+  }
+  const all = g.getImageData(0, 0, W, H).data;
+  const alphaAt = (u, v) => all[(Math.min(H - 1, Math.max(0, Math.round(v * H))) * W + Math.min(W - 1, Math.max(0, Math.round(u * W)))) * 4 + 3];
+  // 머리 꼭대기(가운데 줄에서 처음 보이는 곳)
+  let topV = 0.1;
+  for (let y = 0; y < H; y++) { let hit = false; for (let x = Math.round(W * 0.4); x < W * 0.6; x += 2) if (all[(y * W + x) * 4 + 3] > 128) { hit = true; break; } if (hit) { topV = y / H; break; } }
   const sk1 = avgColor(g, (rec.eyeL[0] - 0.04) * W, (rec.eyeL[1] + 0.1) * H, 0.08 * W, 0.06 * H);
   const sk2 = avgColor(g, (rec.eyeR[0] - 0.04) * W, (rec.eyeR[1] + 0.1) * H, 0.08 * W, 0.06 * H);
   let skin = sk1.map((v, i) => (v + sk2[i]) / 2);
@@ -85,7 +101,7 @@ export async function buildFace(rec) {
   return {
     id: rec.id, name: rec.name || '샌드백', src: rec.src || 'pack', rec,
     eyeL: rec.eyeL, eyeR: rec.eyeR, mouth: rec.mouth, mask: rec.mask || [0.5, 0.48, 0.28, 0.42],
-    skin: hex(skin), hair: hex(hair), tex, thumb: rec.img
+    skin: hex(skin), hair: hex(hair), tex, thumb: rec.img, alphaAt, topV
   };
 }
 
@@ -93,14 +109,19 @@ export async function buildFace(rec) {
 export function cartoonRecord() {
   const S = 512, c = document.createElement('canvas'); c.width = c.height = S;
   const g = c.getContext('2d');
-  g.fillStyle = '#f1c7a5'; g.fillRect(0, 0, S, S);
-  const shade = g.createRadialGradient(S * 0.5, S * 0.55, S * 0.1, S * 0.5, S * 0.55, S * 0.5);
+  // 얼굴형 + 귀 + 목
+  g.fillStyle = '#f1c7a5';
+  g.fillRect(S * 0.4, S * 0.8, S * 0.2, S * 0.2);
+  for (const x of [0.2, 0.8]) { g.beginPath(); g.ellipse(S * x, S * 0.5, S * 0.05, S * 0.08, 0, 0, Math.PI * 2); g.fill(); }
+  g.beginPath(); g.ellipse(S * 0.5, S * 0.5, S * 0.3, S * 0.38, 0, 0, Math.PI * 2); g.fill();
+  const shade = g.createRadialGradient(S * 0.5, S * 0.55, S * 0.1, S * 0.5, S * 0.55, S * 0.4);
   shade.addColorStop(0, 'rgba(255,230,210,0.5)'); shade.addColorStop(1, 'rgba(180,110,80,0.25)');
-  g.fillStyle = shade; g.fillRect(0, 0, S, S);
-  // 바가지 앞머리
+  g.globalCompositeOperation = 'source-atop'; g.fillStyle = shade; g.fillRect(0, 0, S, S); g.globalCompositeOperation = 'source-over';
+  // 바가지 머리
   g.fillStyle = '#1d1e24';
-  g.beginPath(); g.moveTo(0, 0); g.lineTo(S, 0); g.lineTo(S, S * 0.36);
-  for (let i = 10; i >= 0; i--) { const x = S * i / 10; g.lineTo(x, S * (0.34 + (i % 2) * 0.03)); }
+  g.beginPath(); g.ellipse(S * 0.5, S * 0.33, S * 0.33, S * 0.26, 0, Math.PI, Math.PI * 2); g.fill();
+  g.beginPath(); g.moveTo(S * 0.17, S * 0.33); g.lineTo(S * 0.83, S * 0.33); g.lineTo(S * 0.83, S * 0.36);
+  for (let i = 10; i >= 0; i--) { const x = S * (0.17 + 0.66 * i / 10); g.lineTo(x, S * (0.34 + (i % 2) * 0.03)); }
   g.closePath(); g.fill();
   // 눈썹
   g.strokeStyle = '#2a2025'; g.lineWidth = 12; g.lineCap = 'round';
@@ -120,7 +141,7 @@ export function cartoonRecord() {
   g.beginPath(); g.moveTo(S * 0.42, S * 0.71); g.quadraticCurveTo(S * 0.5, S * 0.78, S * 0.58, S * 0.71); g.quadraticCurveTo(S * 0.5, S * 0.735, S * 0.42, S * 0.71); g.fill();
   g.fillStyle = 'rgba(255,120,120,0.3)';
   for (const x of [0.3, 0.7]) { g.beginPath(); g.ellipse(S * x, S * 0.58, 30, 18, 0, 0, Math.PI * 2); g.fill(); }
-  return { id: 'cartoon', name: '샌드백군', src: 'cartoon', img: c.toDataURL('image/png'), eyeL: [0.37, 0.45], eyeR: [0.63, 0.45], mouth: [0.5, 0.72], mask: [0.5, 0.5, 0.33, 0.45] };
+  return { id: 'cartoon', name: '샌드백군', src: 'cartoon', img: c.toDataURL('image/png'), alpha: true, eyeL: [0.37, 0.45], eyeR: [0.63, 0.45], mouth: [0.5, 0.72], mask: [0.5, 0.5, 0.33, 0.45] };
 }
 
 /* ---------- 사진 정렬 (얼굴 추가 화면에서 사용) ---------- */
@@ -148,13 +169,14 @@ export function normalizePhoto(img, eL, eR, m, size = 384, quality = 0.86) {
   return { url: c.toDataURL('image/jpeg', quality), eyeL: tf(eL), eyeR: tf(eR), mouth: tf(m), canvas: c };
 }
 
+// { faces:[...], body: {img, arm, w, h, joints, floorY} | null }
 export async function loadPack(key, url) {
-  if (!key) return [];
+  if (!key) return { faces: [], body: null };
   try {
     const r = await fetch(url, { cache: 'no-cache' });
-    if (!r.ok) return [];
+    if (!r.ok) return { faces: [], body: null };
     const txt = await decryptText(key, await r.text());
     const pack = JSON.parse(txt);
-    return (pack.faces || []).map(f => ({ ...f, src: 'pack' }));
-  } catch (e) { console.info('기본 얼굴 묶음 없음/열쇠 다름'); return []; }
+    return { faces: (pack.faces || []).map(f => ({ ...f, src: 'pack' })), body: pack.body || null };
+  } catch (e) { console.info('기본 얼굴 묶음 없음/열쇠 다름'); return { faces: [], body: null }; }
 }

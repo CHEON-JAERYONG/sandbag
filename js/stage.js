@@ -1,8 +1,10 @@
 // 무대: 렌더러 · 카메라 · 조명 · 복싱 링 배경
 import * as THREE from '../vendor/three.module.min.js';
 
-export const CAM_BASE = new THREE.Vector3(0, 2.6, 6.5);
-export const CAM_LOOK = new THREE.Vector3(0, 2.2, 0);
+export const CAM_BASE = new THREE.Vector3(0, 5.05, 6.9);
+export const CAM_LOOK = new THREE.Vector3(0, 4.45, 0);
+export const CAM_KO = new THREE.Vector3(0.6, 9.2, 3.2);
+export const LOOK_KO = new THREE.Vector3(0, 0.4, -4.6);
 
 function canvasTex(w, h, draw, srgb = true) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -24,9 +26,9 @@ export function createStage(container, lowPower) {
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x07080f);
-  scene.fog = new THREE.Fog(0x07080f, 12, 34);
+  scene.fog = new THREE.Fog(0x07080f, 16, 42);
 
-  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 80);
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 90);
   camera.position.copy(CAM_BASE);
   camera.lookAt(CAM_LOOK);
   scene.add(camera);
@@ -34,14 +36,14 @@ export function createStage(container, lowPower) {
   // ---------- 조명 ----------
   const hemi = new THREE.HemisphereLight(0xaab8ff, 0x2a1a1a, 1.1);
   scene.add(hemi);
-  const key = new THREE.SpotLight(0xfff1dd, 260, 30, 0.55, 0.55, 1.6);
-  key.position.set(1.8, 9.5, 5.2);
-  key.target.position.set(0, 1.8, 0);
+  const key = new THREE.SpotLight(0xfff1dd, 420, 36, 0.62, 0.6, 1.6);
+  key.position.set(2.2, 12, 6.5);
+  key.target.position.set(0, 2.2, -1.2);
   key.castShadow = true;
   key.shadow.mapSize.set(lowPower ? 1024 : 2048, lowPower ? 1024 : 2048);
   key.shadow.bias = -0.0004;
   key.shadow.normalBias = 0.02;
-  key.shadow.camera.near = 3; key.shadow.camera.far = 20;
+  key.shadow.camera.near = 4; key.shadow.camera.far = 30;
   scene.add(key, key.target);
   const fill = new THREE.DirectionalLight(0xffd9c4, 0.9);
   fill.position.set(-4, 3, 6);
@@ -69,9 +71,9 @@ export function createStage(container, lowPower) {
     g.fillText('쿵쾅 체육관', w / 2, h / 2 + 260);
     g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 6; g.strokeRect(30, 30, w - 60, h - 60);
   });
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), new THREE.MeshStandardMaterial({ map: matTex, roughness: 0.92, metalness: 0 }));
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(14, 16), new THREE.MeshStandardMaterial({ map: matTex, roughness: 0.92, metalness: 0 }));
   floor.rotation.x = -Math.PI / 2;
-  floor.position.set(0, 0, 0.6);
+  floor.position.set(0, 0, -1.6);
   floor.receiveShadow = true;
   scene.add(floor);
   // 링 바깥 어두운 바닥
@@ -84,21 +86,21 @@ export function createStage(container, lowPower) {
     for (let i = 0; i < 4; i++) g.fillText('★ 쿵쾅 체육관 ★', w / 8 + i * w / 4, 46);
   });
   apronTex.wrapS = THREE.RepeatWrapping;
-  const apron = new THREE.Mesh(new THREE.BoxGeometry(10, 0.6, 10), new THREE.MeshStandardMaterial({ color: 0xffffff, map: apronTex, roughness: 0.8 }));
-  apron.position.set(0, -0.31, 0.6); scene.add(apron);
+  const apron = new THREE.Mesh(new THREE.BoxGeometry(14, 0.6, 16), new THREE.MeshStandardMaterial({ color: 0xffffff, map: apronTex, roughness: 0.8 }));
+  apron.position.set(0, -0.31, -1.6); scene.add(apron);
 
   // ---------- 링 기둥 · 로프 ----------
   const ringGrp = new THREE.Group(); scene.add(ringGrp);
   const postMat = new THREE.MeshStandardMaterial({ color: 0xd8dce6, metalness: 0.85, roughness: 0.25 });
   const padMats = [new THREE.MeshStandardMaterial({ color: 0xc81e3a, roughness: 0.5 }), new THREE.MeshStandardMaterial({ color: 0x1e50c8, roughness: 0.5 })];
   const ropeMats = [new THREE.MeshStandardMaterial({ color: 0xe8243c, roughness: 0.45 }), new THREE.MeshStandardMaterial({ color: 0xf4f4f4, roughness: 0.45 }), new THREE.MeshStandardMaterial({ color: 0x2456e8, roughness: 0.45 })];
-  const RX = 4.6, RZB = -4.2, RZF = 5.4, ropeY = [0.95, 1.55, 2.15];
+  const RX = 6.6, RZB = -9.2, RZF = 6.0, ropeY = [1.1, 1.9, 2.7];
   const corners = [[-RX, RZB], [RX, RZB], [-RX, RZF], [RX, RZF]];
   corners.forEach(([x, z], i) => {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 2.6, 16), postMat);
-    post.position.set(x, 1.3, z); post.castShadow = true; ringGrp.add(post);
-    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.34, 1.5, 0.34), padMats[i % 2]);
-    pad.position.set(x, 1.55, z); ringGrp.add(pad);
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 3.2, 16), postMat);
+    post.position.set(x, 1.6, z); post.castShadow = true; ringGrp.add(post);
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.38, 2.0, 0.38), padMats[i % 2]);
+    pad.position.set(x, 1.95, z); ringGrp.add(pad);
   });
   const rope = (a, b, y, m) => {
     const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -141,9 +143,9 @@ export function createStage(container, lowPower) {
     }
   });
   crowdTex.wrapS = THREE.RepeatWrapping;
-  const backdrop = new THREE.Mesh(new THREE.CylinderGeometry(20, 20, 16, 48, 1, true, Math.PI * 0.6, Math.PI * 0.8),
+  const backdrop = new THREE.Mesh(new THREE.CylinderGeometry(26, 26, 22, 48, 1, true, Math.PI * 0.6, Math.PI * 0.8),
     new THREE.MeshBasicMaterial({ map: crowdTex, side: THREE.BackSide, fog: false }));
-  backdrop.position.set(0, 5.2, 4); scene.add(backdrop);
+  backdrop.position.set(0, 7, 6); scene.add(backdrop);
 
   // 조명 빛줄기
   const beamTex = canvasTex(64, 256, (g, w, h) => {

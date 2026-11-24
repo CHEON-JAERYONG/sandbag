@@ -1,10 +1,12 @@
 # 쿵쾅 샌드백 — Claude 인수인계 문서 (먼저 읽기)
 
-친구 얼굴 사진을 3D 샌드백 인형 머리에 입혀서, 같은 링크로 들어온 사람들이 다 같이 때리는 웹게임.
+친구 사진 속 **진짜 사람(전신)을 오려낸 '사진 인형'**을 링 위에 세워 놓고, 같은 링크로 들어온 사람들이 다 같이 때리는 웹게임.
 - 실제 주소: https://cheon-jaeryong.github.io/sandbag/  (GitHub Pages, `main` 루트)
 - 저장소: https://github.com/CHEON-JAERYONG/sandbag (공개)
 - **친구 얼굴이 보이는 링크 = 주소 + `#k=열쇠`** (열쇠는 `faces-src/KEY.txt`, 깃 제외). 열쇠 없이 열면 만화 얼굴 + 공개 체육관.
-- 현재 버전: v1.0.1 (2026-11-24) — v1.0.1: 체육관 기록 초기화(`reset` 상태) 받기
+- 현재 버전: v1.1.0 (2026-11-24)
+  - v1.1.0 사용자 요청 "샌드백 말고 사람이 맞는 것처럼, 얼굴 더 잘 보이게, 사진 속 인물 그대로(AI 영상처럼)" → 3D 샌드백 인형을 버리고 **사진 인형(포토 퍼펫)**으로 바꿈. AI 영상 생성은 유료/대형 모델이라 불가 → 무료 rembg로 배경을 지우고 사진 자체를 뼈대로 휘게 함(사용자에게 설명함).
+  - v1.0.1: 체육관 기록 초기화(`reset` 상태) 받기
 
 ## 사용자 선호
 - 한국어·쉬운 말. 확인한 것만 말하기. API 키/유료/가입 금지(공개 MQTT + GitHub Pages).
@@ -21,7 +23,7 @@
 |---|---|
 | `index.html`, `style.css` | 화면(위: 체력바·참가자·설정 / 아래: 도구 8개·뎀프시·필살 / 시작창·설정창) |
 | `js/main.js` | 전체 흐름: 조작(탭·꼬집기 끌기·간지럼 누르기), 도구별 반응표 `FXT`, `myHit`→`impact`, 콤보·게이지, KO/라운드(얼굴 교대), 뎀프시롤 `D`, 카메라, 온라인 처리 |
-| `js/dummy.js` | 인형: 머리(구에 사진 투영 + 셰이더로 찡그림·`><`/X/^^/소용돌이 눈·눈물·멍·손자국·홍조), 바가지 머리, 맨투맨+샌드백 몸통(이름 글자), 흐느적 팔, 스프링 받침. 물리(몸 흔들림·목 휘청·찌그러짐), 맞은 곳 움푹(`addDeformer`), 꼬집어 늘리기(`grab/pull/release`), 혹(`addBump`) |
+| `js/dummy.js` | **사진 인형**: 몸 사진 2층(몸통 `torso` + 앞에 있는 팔 `arm`, 팔 뒤는 메워 둠)을 격자로 만들고 뼈대 12개(골반·허리·가슴·목·허벅지/정강이/발×2·위팔·아래팔) 가중치로 CPU에서 휘게 함. 다리는 발을 바닥에 둔 2관절 IK(무릎 풀리면 바깥으로 굽음). 두께는 투명도에서 거리변환. 머리는 얼굴 사진 카드(볼록한 판, 투명한 곳 버림) + 셰이더 표정(찡그림·`><`/X/^^/소용돌이·눈물·멍·손자국·홍조). 물리: 발 기준 흔들림/KO 때 뒤로 쓰러짐(`B`), 허리(`W`), 머리(`H`), 무릎(`C`), 팔 반사 자세(`flinch`: face 막기·gut 배 움켜쥐기·head 머리 감싸기). 좌표: 몸은 '쉬는 자세' 좌표(`lp`, `toRest`), 머리는 카드 좌표(`headToUv`). `spot('gut'|'chest'|'sideL'|'sideR'|'thigh')`, `headSpotUV(u,v)`. 열쇠 없으면 `cartoonBody()` |
 | `js/attacker.js` | 1인칭: 권투 글러브 2개(직선·훅·어퍼·바디), 맨손(싸대기·꿀밤·딱밤·꼬집기·간지럼 — 손가락 관절), 발차기 다리, 뿅망치. 팔/다리는 화면 오른쪽 아래 밖에서 들어오게 `armQ` |
 | `js/fx.js` | 섬광·충격파·땀방울·집중선·잔상·의성어(퍽!)·데미지 숫자·말풍선·화면 흔들림 |
 | `js/sound.js` | 효과음 전부 WebAudio 합성 + 브라우저 한국어 음성(speechSynthesis)으로 비명 |
@@ -39,7 +41,9 @@
 
 ## 얼굴 바꾸기 (나중에 이미지만 바꾸고 싶을 때)
 1. **게임 안에서**(쉬움): ⚙️ 설정 → 얼굴 추가 → 사진 → 눈·눈·입 → 저장. 같은 링크 모두에게 바로 보임(배포 불필요). ✕로 지움.
-2. **기본 얼굴 묶음 교체**: `faces-src/faces.json`(source=사진 폴더, faces=[{file,id,name,eL,eR,m,mask}]) 수정 → `powershell -ExecutionPolicy Bypass -File tools/normalize-faces.ps1 -Preview`(미리보기 png로 점 위치 확인 후 지우기) → `node tools/make-pack.js` → commit/push. 열쇠는 KEY.txt 그대로라 링크 유지. 눈 위치는 사진을 격자 그려 확대해서 읽음.
+2. **기본 묶음(몸+머리) 다시 만들기**: `faces-src/faces.json` = { source: 사진 폴더, body: {file, joints(원본 px: pelvis spine chest neck shL elL wrL haL shR hipL knL anL toL hipR knR anR toR — L/R은 **화면 기준 왼/오른쪽**), armPoly(앞에 있는 팔 윤곽), headErase, neckY, floorY}, faces: [{file,id,name,eL,eR,m,mask, seg:false(배경 못 지우는 사진은 타원), ellK}] }
+   → `<venv>/python tools/build-puppet.py` (rembg 필요: `python -m venv venv && venv/Scripts/pip install "rembg[cpu]"`, 첫 실행 때 모델 자동 다운로드 — 이번엔 scratchpad에 venv 만들었음, 없으면 다시 만들기) → `faces-src/pack-plain.json` + `faces-src/puppet/*.png`(확인용)
+   → `node tools/make-pack.js` (pack-plain.json을 KEY.txt 열쇠로 암호화 → faces/pack.bin) → commit/push. 관절·팔 윤곽은 사진에 격자 그려서 읽음. (`normalize-faces.ps1`은 옛 방식, 이제 안 씀)
 
 ## 테스트
 ```bash
@@ -48,11 +52,12 @@ cd tools && npm install                         # 처음 한 번 (playwright-cor
 node tools/shot.js                              # 도구 8개 캡처 (PLAN=punch,kick BURST=3 DELAY=90 DEMPSEY=1 KO=1, 폰: TAG=m W=390 H=844 DPR=2 MOBILE=1)
 node tools/test-online.js                       # PC+폰+늦게 온 사람: 체력·KO·라운드 동기화 (테스트용 새 열쇠)
 node tools/test-face.js                         # 얼굴 추가 → 다른 화면에 도착
+node tools/test-fall.js                         # KO 쓰러짐·배 맞기 자세를 물리 직접 돌려 캡처(헤드리스는 느려서 실제 시간으론 확인 어려움)
 # 실제 주소: BASE=https://cheon-jaeryong.github.io/sandbag/ node tools/test-online.js
 ```
 캡처는 `tools/shots/`(깃 제외) — 직접 열어 눈으로 확인. 헤드리스는 swiftshader라 느림(실제 기기는 훨씬 부드러움).
 `shot.js`를 진짜 열쇠로 돌리면 실제 체육관 라운드/KO 기록이 바뀜 → KO 테스트는 `KEY=아무거나`로. 바뀌었으면 `node tools/reset-gym.js`(실제 주소에서 라운드1·KO0으로).
-버전 올릴 때: `js/main.js`의 `VERSION` + `index.html`의 `?v=` 2곳(style.css, main.js). 다른 js는 ?v 없이 import라 GitHub Pages 캐시(최대 10분) 후 반영.
+버전 올릴 때: `js/main.js`의 `VERSION` + `index.html`의 `?v=` 2곳 + **모든 js의 import 경로 `?v=`** (한 줄: `for f in js/*.js; do sed -i -E "s#from '\./([a-z]+)\.js(\?v=[0-9.]+)?'#from './.js?v=새버전'#g" $f; done`) — 섞여서 옛 파일을 읽으면 깨짐.
 
 ## 디버그
 콘솔 `window.__sb` → `G`(상태), `D`(뎀프시), `dummy`, `atk`, `net`, `faces`, `selectTool()`, `setDempsey()`, `startSuper()`, `myHit()`.

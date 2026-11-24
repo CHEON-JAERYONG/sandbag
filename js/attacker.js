@@ -11,6 +11,7 @@ const ease = {
 // 손(또는 다리)이 p에 있을 때 팔꿈치(무릎)는 p+elbow 쪽 → 팔이 화면 밖으로 빠지게. up = 손등 방향
 const armQ = (p, elbow, up) => new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(p.clone().add(elbow), p, up));
 const nv = (x, y, z) => new THREE.Vector3(x, y, z).normalize();
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const bez = (a, b, c, t, out) => {
   const u = 1 - t;
   return out.set(u * u * a.x + 2 * u * t * b.x + t * t * c.x, u * u * a.y + 2 * u * t * b.y + t * t * c.y, u * u * a.z + 2 * u * t * b.z + t * t * c.z);
@@ -97,7 +98,7 @@ function makeHand() {
     apply(cur);
   }
   setPose('open');
-  g.scale.setScalar(1.35);
+  g.scale.setScalar(1.7);
   return { g, setPose };
 }
 
@@ -150,8 +151,8 @@ export class Attacker {
     });
     this.hand = makeHand(); camera.add(this.hand.g);
     this.hand.g.visible = false;
-    this.leg = makeLeg(); camera.add(this.leg); this.leg.visible = false;
-    this.ham = makeHammer(); camera.add(this.ham.g); this.ham.g.visible = false;
+    this.leg = makeLeg(); this.leg.scale.setScalar(1.25); camera.add(this.leg); this.leg.visible = false;
+    this.ham = makeHammer(); this.ham.g.scale.setScalar(1.3); camera.add(this.ham.g); this.ham.g.visible = false;
     this.anims = [];
     this.nextGlove = 1;
     this.handBusy = false;
@@ -195,6 +196,7 @@ export class Attacker {
       const restP = this.guard ? guardPos : G.rest;
       const hideY = this.glovesHidden ? -0.9 : 0;
       if (!G.anim) {
+        m.scale.setScalar(m.scale.x + (0.72 - m.scale.x) * Math.min(1, dt * 10));
         m.position.lerp(new THREE.Vector3(restP.x, restP.y + bob + hideY, restP.z), 1 - Math.exp(-dt * 14));
         const rr = this.guard ? new THREE.Euler(0.15, G.side * -0.5, G.side * 0.6) : G.restRot;
         m.quaternion.slerp(new THREE.Quaternion().setFromEuler(rr), 1 - Math.exp(-dt * 12));
@@ -226,6 +228,7 @@ export class Attacker {
       }
       if (!A.hit && A.t >= A.out) { A.hit = true; A.onImpact && A.onImpact(); }
       m.position.copy(p);
+      m.scale.setScalar(0.72 * clamp(0.62 + p.length() * 0.13, 1, 1.75));
       // 방향: 주먹이 목표를 향하게
       const look = new THREE.Matrix4().lookAt(p, end.clone().add(dir.clone().multiplyScalar(0.01)).addScaledVector(dir, 0.5), new THREE.Vector3(0, 1, 0));
       const q = new THREE.Quaternion().setFromRotationMatrix(look);

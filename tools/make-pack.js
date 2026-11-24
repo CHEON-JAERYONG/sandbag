@@ -24,7 +24,9 @@ const faces = marks.map(m => ({
   eyeL: m.eyeL, eyeR: m.eyeR, mouth: m.mouth,
   mask: MASKS[m.id] || (Array.isArray(m.mask) ? m.mask : [0.5, 0.48, 0.28, 0.42])
 }));
-const plain = JSON.stringify({ v: 1, faces });
+const plainFile = path.join(src, 'pack-plain.json');
+const plain = fs.existsSync(plainFile) ? fs.readFileSync(plainFile, 'utf8') : JSON.stringify({ v: 1, faces });
+if (fs.existsSync(plainFile)) console.log('사진 인형 묶음(pack-plain.json) 사용');
 const iv = crypto.randomBytes(12);
 const c = crypto.createCipheriv('aes-128-gcm', fromB64u(key), iv);
 const ct = Buffer.concat([c.update(plain, 'utf8'), c.final()]);

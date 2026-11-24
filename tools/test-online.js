@@ -19,7 +19,7 @@ const ok = (c, msg) => { console.log((c ? '  ✅ ' : '  ❌ ') + msg); if (!c) f
     page.on('pageerror', e => page.errs.push(e.message));
     page.on('console', m => { if (m.type() === 'error') page.errs.push(m.text()); });
     await page.goto(BASE + '#k=' + KEY, { waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(() => !document.getElementById('startBtn').disabled, null, { timeout: 30000 });
+    await page.waitForFunction(() => !document.getElementById('startBtn').disabled, null, { timeout: 90000 });
     await page.fill('#nameIn', name);
     await page.click('#startBtn');
     return page;
