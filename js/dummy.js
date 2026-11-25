@@ -2,9 +2,12 @@
 // 사진 자체를 관절(뼈대)로 휘게 해서 맞는 모습을 보여줌: 허리 꺾임·무릎 풀림·고개 휘청·팔로 막기/배 움켜쥐기/머리 감싸기·KO 때 뒤로 쓰러짐
 // 머리 카드는 셰이더로 찡그림·><·X·^^·소용돌이 눈·눈물·멍·손자국·홍조, 맞은 자리 움푹, 꼬집어 늘리기
 import * as THREE from '../vendor/three.module.min.js';
-import { canvasTex } from './stage.js?v=1.1.0';
+import { canvasTex } from './stage.js?v=1.2.0';
 
-export const FS = 1.55;      // 머리 카드: 얼굴 사진 UV 1칸 = 1.55 단위
+export const FS = 1.55;      // 머리 카드: 얼굴 사진 UV 1칸 = 1.55 단위(기본), 얼굴마다 headScale로 몸에 맞춤
+const HEAD_H = 1.08;         // 머리(정수리~턱) 높이 = 사진 속 실제 비율의 약 1.12배
+const CHIN_UP = 0.11;        // 턱 끝이 목 관절보다 이만큼 위(그 사이로 3D 목이 보임)
+const NECK = { x: 0, r: 0.17, down: 0.11 };   // 3D 목: 관절 기준 가로 위치·반지름·깃 속으로 내려가는 길이(몸 사진의 깃 모양에 맞춤 → setBody)
 const BODY_H = 5.3;          // 몸 사진(목 아래~바닥) 높이
 const DEPTH = 0.38;          // 몸 두께(가운데)
 const HEAD_DOME = 0.34;      // 머리 카드 볼록함
@@ -14,9 +17,12 @@ const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const G = (dx, dy, sx, sy) => Math.exp(-(dx * dx) / (sx * sx) - (dy * dy) / (sy * sy));
 const _q = new THREE.Quaternion(), _m = new THREE.Matrix4(), _v = v3(), _w = v3();
 
+// 머리 카드 볼록함: 얼굴마다 머리 범위(정수리~턱, 가운데)에 맞춰 setFace에서 바꿈
+const DOME = { cu: 0.5, cv: 0.47, rx: 0.37, ry: 0.47, amp: HEAD_DOME };
 function domeZ(u, v) {
-  const d = 1 - ((u - 0.5) / 0.37) ** 2 - ((v - 0.47) / 0.47) ** 2;
-  return d > 0 ? HEAD_DOME * Math.sqrt(d) : 0;
+  const D = DOME;
+  const d = 1 - ((u - D.cu) / D.rx) ** 2 - ((v - D.cv) / D.ry) ** 2;
+  return d > 0 ? D.amp * Math.sqrt(d) : 0;
 }
 export function headToUv(p) { return [0.5 + p.x / FS, 0.5 - p.y / FS]; }
 export function uvToHead(u, v, out = v3()) { return out.set((u - 0.5) * FS, (0.5 - v) * FS, domeZ(u, v)); }
@@ -32,7 +38,11 @@ uniform vec4 flash;
 uniform vec4 bruises[8];
 uniform vec4 hands[3];
 uniform vec2 blackEye;
+uniform float fsc; uniform vec2 fC;
 varying vec2 vFaceUv;
+// 효과 크기는 '게임에서 추가한 얼굴(눈 사이 0.26)' 기준 → 얼굴 크기가 달라도 같은 크기로
+vec2 toN(vec2 p){ return fC + (p - fC) / fsc; }
+vec2 toT(vec2 p){ return fC + (p - fC) * fsc; }
 vec3 gCol;
 float gauss2(vec2 d, vec2 s){ vec2 q = d / s; return exp(-dot(q, q)); }
 float sdSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h); }
@@ -79,43 +89,45 @@ float handPrint(vec2 q){
 }
 `;
 const FACE_MAIN = /* glsl */`
-  vec2 uv = vFaceUv;
-  if (texture2D(faceMap, uv).a < 0.5) discard;
-  vec2 suv = mouthWarp(uv, mouthP, mouthAmt);
-  suv = eyeWarp(suv, eyeL, squint.x * 1.9);
-  suv = eyeWarp(suv, eyeR, squint.y * 1.9);
-  vec3 col = texture2D(faceMap, suv).rgb;
+  float ta = texture2D(faceMap, vFaceUv).a;
+  if (ta < 0.04) discard;
+  vec2 uv = toN(vFaceUv);
+  vec2 EL = toN(eyeL), ER = toN(eyeR), MP = toN(mouthP);
+  vec2 suv = mouthWarp(uv, MP, mouthAmt);
+  suv = eyeWarp(suv, EL, squint.x * 1.9);
+  suv = eyeWarp(suv, ER, squint.y * 1.9);
+  vec3 col = texture2D(faceMap, toT(suv)).rgb;
   if (shut > 0.01) {
-    float emL = gauss2(uv - eyeL, vec2(0.08, 0.048));
-    float emR = gauss2(uv - eyeR, vec2(0.08, 0.048));
-    vec3 lidL = texture2D(faceMap, vec2(uv.x, eyeL.y + 0.085 + (uv.y - eyeL.y) * 0.3)).rgb;
-    vec3 lidR = texture2D(faceMap, vec2(uv.x, eyeR.y + 0.085 + (uv.y - eyeR.y) * 0.3)).rgb;
+    float emL = gauss2(uv - EL, vec2(0.08, 0.048));
+    float emR = gauss2(uv - ER, vec2(0.08, 0.048));
+    vec3 lidL = texture2D(faceMap, toT(vec2(uv.x, EL.y + 0.085 + (uv.y - EL.y) * 0.3))).rgb;
+    vec3 lidR = texture2D(faceMap, toT(vec2(uv.x, ER.y + 0.085 + (uv.y - ER.y) * 0.3))).rgb;
     col = mix(col, lidL, shut * smoothstep(0.2, 0.65, emL));
     col = mix(col, lidR, shut * smoothstep(0.2, 0.65, emR));
     if (eyeMode > 0.5) {
-      float mk = max(eyeMark(uv, eyeL, 1.0, eyeMode), eyeMark(uv, eyeR, -1.0, eyeMode));
+      float mk = max(eyeMark(uv, EL, 1.0, eyeMode), eyeMark(uv, ER, -1.0, eyeMode));
       col = mix(col, vec3(0.012, 0.008, 0.008), mk * shut);
     }
   }
   for (int i = 0; i < 8; i++) {
     vec4 b = bruises[i];
-    if (b.w > 0.001) col = mix(col, col * vec3(0.5, 0.26, 0.42), clamp(gauss2(uv - b.xy, vec2(b.z)) * b.w, 0.0, 0.85));
+    if (b.w > 0.001) col = mix(col, col * vec3(0.5, 0.26, 0.42), clamp(gauss2(uv - toN(b.xy), vec2(b.z)) * b.w, 0.0, 0.85));
   }
-  col = mix(col, col * vec3(0.32, 0.17, 0.33), clamp(gauss2(uv - eyeL, vec2(0.085, 0.062)) * blackEye.x, 0.0, 0.85));
-  col = mix(col, col * vec3(0.32, 0.17, 0.33), clamp(gauss2(uv - eyeR, vec2(0.085, 0.062)) * blackEye.y, 0.0, 0.85));
-  float bl = (gauss2(uv - eyeL - vec2(-0.03, 0.12), vec2(0.075, 0.05)) + gauss2(uv - eyeR - vec2(0.03, 0.12), vec2(0.075, 0.05))) * blush;
+  col = mix(col, col * vec3(0.32, 0.17, 0.33), clamp(gauss2(uv - EL, vec2(0.085, 0.062)) * blackEye.x, 0.0, 0.85));
+  col = mix(col, col * vec3(0.32, 0.17, 0.33), clamp(gauss2(uv - ER, vec2(0.085, 0.062)) * blackEye.y, 0.0, 0.85));
+  float bl = (gauss2(uv - EL - vec2(-0.03, 0.12), vec2(0.075, 0.05)) + gauss2(uv - ER - vec2(0.03, 0.12), vec2(0.075, 0.05))) * blush;
   col = mix(col, vec3(0.75, 0.06, 0.07), clamp(bl, 0.0, 0.55));
   for (int i = 0; i < 3; i++) {
     vec4 h = hands[i];
     if (h.w > 0.001) {
-      vec2 d = uv - h.xy; float cs = cos(h.z), sn = sin(h.z);
+      vec2 d = uv - toN(h.xy); float cs = cos(h.z), sn = sin(h.z);
       vec2 q = vec2(cs * d.x + sn * d.y, -sn * d.x + cs * d.y) / 0.085;
       col = mix(col, col * vec3(1.25, 0.28, 0.28), handPrint(q) * h.w * 0.8);
     }
   }
   if (tears > 0.01) {
     for (int k = 0; k < 2; k++) {
-      vec2 e = k == 0 ? eyeL : eyeR;
+      vec2 e = k == 0 ? EL : ER;
       float sd = k == 0 ? -1.0 : 1.0;
       float y = uv.y - e.y - 0.025;
       float x = uv.x - (e.x + sd * (0.025 + y * 0.12) + 0.006 * sin(uv.y * 45.0 + uTime * 4.0));
@@ -128,9 +140,10 @@ const FACE_MAIN = /* glsl */`
   col = mix(col, flash.rgb, flash.a);
   gCol = col;
   diffuseColor.rgb = col * 0.32;
+  diffuseColor.a = ta;
 `;
 function makeHeadMaterial(uniforms) {
-  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0, toneMapped: false });
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0, toneMapped: false, transparent: true });
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
@@ -200,12 +213,13 @@ export function cartoonBody() {
   for (const [a, t] of [[J.anL, J.toL], [J.anR, J.toR]]) { line([a, t], 60, '#6b717c'); line([[a[0] - 10, a[1] + 40], [t[0] + 10, t[1] + 20]], 22, '#f0f0f0'); }
   g.fillStyle = '#2b3d63'; g.fillRect(J.hipL[0] - 40, J.pelvis[1] - 40, J.hipR[0] - J.hipL[0] + 80, 90);
   g.fillStyle = '#ecebe6';
-  g.beginPath(); g.moveTo(J.neck[0] - 60, 10); g.lineTo(J.neck[0] + 60, 10); g.lineTo(J.shR[0] + 20, J.shR[1] + 40); g.lineTo(J.hipR[0] + 30, J.pelvis[1] - 10);
+  // 윗선: 목이 들어가는 U자 깃
+  g.beginPath(); g.moveTo(J.neck[0] - 60, 14); g.lineTo(J.neck[0] - 34, 12); g.quadraticCurveTo(J.neck[0], 62, J.neck[0] + 34, 12); g.lineTo(J.neck[0] + 60, 14); g.lineTo(J.shR[0] + 20, J.shR[1] + 40); g.lineTo(J.hipR[0] + 30, J.pelvis[1] - 10);
   g.lineTo(J.hipL[0] - 60, J.pelvis[1] - 10); g.lineTo(60, 120); g.closePath(); g.fill();
   const arm = mk(), a = arm.getContext('2d'); a.lineCap = 'round'; a.lineJoin = 'round';
   a.strokeStyle = '#a3a7ae'; a.lineWidth = 76; a.beginPath(); a.moveTo(...J.shL); a.lineTo(...J.elL); a.lineTo(...J.wrL); a.stroke();
   a.fillStyle = '#e9bf9f'; a.beginPath(); a.ellipse(J.haL[0], J.haL[1], 34, 44, 0.4, 0, Math.PI * 2); a.fill();
-  return { img: torso.toDataURL('image/png'), arm: arm.toDataURL('image/png'), w: W, h: H, joints: J, floorY: 1052 };
+  return { img: torso.toDataURL('image/png'), arm: arm.toDataURL('image/png'), w: W, h: H, joints: J, floorY: 1052, neckBox: [J.neck[0], 32, 40] };
 }
 
 /* ---------------- 인형 ---------------- */
@@ -231,7 +245,8 @@ export class Dummy {
       flash: { value: new THREE.Vector4(1, 1, 1, 0) },
       bruises: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) },
       hands: { value: Array.from({ length: 3 }, () => new THREE.Vector4()) },
-      blackEye: { value: new THREE.Vector2() }
+      blackEye: { value: new THREE.Vector2() },
+      fsc: { value: 1 }, fC: { value: new THREE.Vector2(0.5, 0.45) }
     };
     const hg = gridGeometry(72, 72);
     this.head = new THREE.Mesh(hg, makeHeadMaterial(this.u));
@@ -239,12 +254,26 @@ export class Dummy {
     this.head.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, alphaTest: 0.5 });
     this.headInner.add(this.head);
     this.headMesh = { mesh: this.head, rest: null, base: null, dirty: true, active: false };
+    hg.attributes.position.setUsage(THREE.DynamicDrawUsage);
+    this.shapeHead();
+
+    // 목: 머리 카드 뒤에서 몸 깃 안쪽으로 들어가는 납작한 원통(얼굴 피부색, 음영은 미리 칠함)
     {
-      const p = hg.attributes.position, uv = hg.attributes.uv;
-      for (let i = 0; i < p.count; i++) { const u = uv.getX(i), v = uv.getY(i); p.setXYZ(i, (u - 0.5) * FS, (0.5 - v) * FS, domeZ(u, v)); }
-      hg.computeVertexNormals();
-      this.headMesh.rest = new Float32Array(p.array); this.headMesh.base = new Float32Array(p.array);
-      p.setUsage(THREE.DynamicDrawUsage);
+      const ng = new THREE.CylinderGeometry(0.88, 1, 1, 28, 8, true);   // 위가 조금 가늚
+      ng.translate(0, 0.5, 0);
+      const p = ng.attributes.position, cols = [];
+      for (let i = 0; i < p.count; i++) {
+        const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+        const front = Math.max(0, z) ** 1.4, top = Math.min(1, Math.max(0, (y - 0.4) / 0.45));
+        const k = (0.42 + 0.46 * front) * (1 - 0.35 * top);   // 옆은 어둡게(둥글게), 위(턱 그늘)도 어둡게
+        cols.push(k, k, k);
+      }
+      ng.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+      this.neckMat = new THREE.MeshBasicMaterial({ color: 0xe0b090, vertexColors: true, toneMapped: false });
+      this.neckMesh = new THREE.Mesh(ng, this.neckMat);
+      this.neckMesh.castShadow = true;
+      this.neckMesh.userData.part = 'head';
+      this.root.add(this.neckMesh);
     }
 
     // 별(어지러움)
@@ -341,7 +370,7 @@ export class Dummy {
       g.computeVertexNormals();
       g.boundingSphere = new THREE.Sphere(v3(0, BODY_H / 2, 0), BODY_H * 1.2);
       const tex = texOf(img.canvas);
-      const mat = new THREE.MeshStandardMaterial({ map: tex, color: 0x525252, alphaTest: 0.5, roughness: 0.95, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.74, toneMapped: false });
+      const mat = new THREE.MeshStandardMaterial({ map: tex, color: 0x525252, alphaTest: 0.5, roughness: 0.95, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.74, toneMapped: false, alphaToCoverage: true });
       const mesh = new THREE.Mesh(g, mat);
       mesh.castShadow = true; mesh.receiveShadow = true;
       mesh.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: tex, alphaTest: 0.5 });
@@ -358,6 +387,9 @@ export class Dummy {
     this.bag = this.torso;
     this.hitMeshes = [this.head, this.arm, this.torso];
     this.neckRest = this.toRest(J.neck[0], J.neck[1]);
+    if (rec.neckBox) { // [가운데 x, 반폭, 깃 맨 아래 y] (몸 사진 px)
+      NECK.x = (rec.neckBox[0] - J.neck[0]) * K; NECK.r = rec.neckBox[1] * K; NECK.down = (rec.neckBox[2] - J.neck[1]) * K + 0.03;
+    } else Object.assign(NECK, { x: 0, r: 0.17, down: 0.11 });
     this.spineRest = this.toRest(J.spine[0], J.spine[1]);
     // 다리 IK 기준
     const R = (k) => this.toRest(J[k][0], J[k][1]);
@@ -372,6 +404,18 @@ export class Dummy {
 
   setName(name) { this.name = name; }
 
+  // 머리 카드 격자 모양(볼록함은 DOME)
+  shapeHead() {
+    const hg = this.head.geometry, p = hg.attributes.position, uv = hg.attributes.uv;
+    for (let i = 0; i < p.count; i++) { const u = uv.getX(i), v = uv.getY(i); p.setXYZ(i, (u - 0.5) * FS, (0.5 - v) * FS, domeZ(u, v)); }
+    hg.computeVertexNormals();
+    this.headMesh.rest = new Float32Array(p.array); this.headMesh.base = new Float32Array(p.array);
+    p.needsUpdate = true; this.headMesh.dirty = true;
+  }
+
+  // 얼굴 기준 위치: 눈 가운데에서 (du, dv) — 값은 '게임에서 추가한 얼굴(눈 사이 0.26)' 기준, 얼굴 크기에 맞춰 늘림
+  faceUV(du, dv) { const c = this.u.fC.value, k = this.fsc || 1; return [c.x + du * k, c.y + dv * k]; }
+
   /* 얼굴(머리 카드) 바꾸기 */
   setFace(face) {
     this.face = face;
@@ -384,8 +428,20 @@ export class Dummy {
     u.mouthP.value.set(face.mouth[0], face.mouth[1]);
     this.skinCol.set(face.skin || '#e6b898');
     this.name = face.name;
-    this.chinV = Math.min(0.93, face.mouth[1] + 0.14);
+    const eyeY = (face.eyeL[1] + face.eyeR[1]) / 2, eyeX = (face.eyeL[0] + face.eyeR[0]) / 2;
+    this.chinV = face.chinV ?? Math.min(0.95, face.mouth[1] + 0.48 * (face.mouth[1] - eyeY));
     this.topV = face.topV ?? 0.08;
+    this.headScale = clamp(HEAD_H / ((this.chinV - this.topV) * FS), 0.5, 1.6);
+    this.centerU = face.centerU ?? 0.5;
+    // 얼굴 크기(눈 사이·눈~입 거리 중 큰 쪽) — 게임에서 추가한 얼굴 = 1
+    const de = Math.hypot(face.eyeR[0] - face.eyeL[0], face.eyeR[1] - face.eyeL[1]);
+    this.fsc = clamp(Math.max(de, (face.mouth[1] - eyeY) / 1.08) / 0.26, 0.4, 1.6);
+    u.fsc.value = this.fsc; u.fC.value.set(eyeX, eyeY);
+    // 볼록함: 정수리~턱 범위에 맞춤(세상 크기로는 늘 같게)
+    const hh = (this.chinV - this.topV) / 2;
+    Object.assign(DOME, { cu: this.centerU, cv: this.topV + hh, ry: hh * 1.2, rx: hh * 1.2 * 0.79, amp: 0.29 / this.headScale });
+    this.shapeHead();
+    this.neckMat.color.set(face.skin || '#e0b090').multiplyScalar(0.95);
     this.resetDamage();
   }
 
@@ -405,14 +461,14 @@ export class Dummy {
     const eL = f ? f.eyeL : [0.37, 0.45], eR = f ? f.eyeR : [0.63, 0.45], mo = f ? f.mouth : [0.5, 0.72];
     const mx = (eL[0] + eR[0]) / 2, my = (eL[1] + eR[1]) / 2;
     const nose = [mx + (mo[0] - mx) * 0.55, my + (mo[1] - my) * 0.55];
-    const d = this.damage;
+    const d = this.damage, k = this.fsc || 1;
     for (let i = 0, n = uv.count; i < n; i++) {
       const u = uv.getX(i), v = uv.getY(i);
-      let z = 0.09 * G(u - nose[0], v - nose[1], 0.045, 0.07);
-      z -= 0.03 * (G(u - eL[0], v - eL[1], 0.055, 0.035) + G(u - eR[0], v - eR[1], 0.055, 0.035));
-      z += 0.025 * G(u - mo[0], v - mo[1] + 0.01, 0.09, 0.045);
-      z += d.swellL * 0.13 * G(u - eL[0] + 0.03, v - eL[1] - 0.15, 0.09, 0.09);
-      z += d.swellR * 0.13 * G(u - eR[0] - 0.03, v - eR[1] - 0.15, 0.09, 0.09);
+      let z = 0.09 * G(u - nose[0], v - nose[1], 0.045 * k, 0.07 * k);
+      z -= 0.03 * (G(u - eL[0], v - eL[1], 0.055 * k, 0.035 * k) + G(u - eR[0], v - eR[1], 0.055 * k, 0.035 * k));
+      z += 0.025 * G(u - mo[0], v - mo[1] + 0.01 * k, 0.09 * k, 0.045 * k);
+      z += d.swellL * 0.13 * G(u - eL[0] + 0.03 * k, v - eL[1] - 0.15 * k, 0.09 * k, 0.09 * k);
+      z += d.swellR * 0.13 * G(u - eR[0] - 0.03 * k, v - eR[1] - 0.15 * k, 0.09 * k, 0.09 * k);
       M.base[i * 3 + 2] = M.rest[i * 3 + 2] + z * (domeZ(u, v) > 0 ? 1 : 0.3);
     }
     M.dirty = true;
@@ -759,11 +815,19 @@ export class Dummy {
       if (k >= 1) this.spin = null;
     }
     const nq = new THREE.Quaternion().setFromRotationMatrix(bones[3].m);
-    this.headGrp.position.copy(this.neck.position).add(v3(0, 0.02, 0.2).applyQuaternion(nq));
+    // 목은 맨투맨 깃 뒤로 들어가게(머리 카드 바닥을 몸보다 살짝 뒤에), 얼굴(볼록한 곳)은 앞으로 나옴
+    this.headGrp.position.copy(this.neck.position).add(v3(0, 0, -0.04).applyQuaternion(nq));
     this.headGrp.quaternion.copy(nq).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(H.x * 0.7, H.y * 0.7 + spinY, H.z * 0.8, 'YXZ')));
     const sh = 1 + this.S.h;
     this.headGrp.scale.set(pop / Math.sqrt(sh), pop * sh, pop / Math.sqrt(sh));
-    this.headInner.position.set(0, ((this.chinV ?? 0.86) - 0.5) * FS - 0.06, 0);
+    const hs = this.headScale ?? 1;
+    this.headInner.scale.setScalar(hs);
+    this.headInner.position.set(-((this.centerU ?? 0.5) - 0.5) * FS * hs + 0.02, ((this.chinV ?? 0.86) - 0.5) * FS * hs + CHIN_UP, 0);
+    // 목: 깃 속(관절 아래)에서 턱 뒤까지, 머리 움직임의 반만 따라감
+    const nk = this.neckMesh;
+    nk.position.copy(this.neck.position).add(v3(NECK.x, -NECK.down, -0.12).applyQuaternion(nq));
+    nk.quaternion.copy(nq).multiply(_q.setFromEuler(new THREE.Euler(H.x * 0.35, H.y * 0.35, H.z * 0.4, 'YXZ')));
+    nk.scale.set(NECK.r * pop, (NECK.down + CHIN_UP + 0.16) * Math.max(0.02, pop), 0.11 * pop);
     // 혹
     for (const b of this.bumps) {
       b.v += (-120 * (b.s - 1) - 6 * b.v) * dt; b.s += b.v * dt; b.mesh.scale.setScalar(Math.max(0.01, b.s));
@@ -773,7 +837,7 @@ export class Dummy {
     this.dizzy = Math.max(0, this.dizzy - dt);
     this.starGrp.visible = this.dizzy > 0;
     if (this.starGrp.visible) {
-      const top = this.headInner.position.y + (0.5 - (this.topV ?? 0.08)) * FS;
+      const top = this.headInner.position.y + (0.5 - (this.topV ?? 0.08)) * FS * (this.headScale ?? 1);
       this.stars.forEach((s, i) => {
         const a = this.time * 4 + i * Math.PI * 2 / this.stars.length;
         s.position.set(Math.cos(a) * 0.75, top + Math.sin(a * 2) * 0.05, Math.sin(a) * 0.5 + 0.2);

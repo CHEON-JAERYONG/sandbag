@@ -1,6 +1,6 @@
 // 효과: 타격 섬광 · 충격파 · 땀방울 · 만화 집중선 · 휘두른 잔상 · 의성어 글자 · 데미지 숫자 · 말풍선 · 화면 흔들림
 import * as THREE from '../vendor/three.module.min.js';
-import { canvasTex } from './stage.js?v=1.1.0';
+import { canvasTex } from './stage.js?v=1.2.0';
 
 const rand = (a, b) => a + Math.random() * (b - a);
 

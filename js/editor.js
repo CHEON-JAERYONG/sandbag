@@ -1,5 +1,5 @@
 // 얼굴 추가 화면: 사진 고르기 → 왼쪽 눈 · 오른쪽 눈 · 입 콕 찍기(확대·이동 가능) → 얼굴 테두리 조절 → 저장
-import { normalizePhoto } from './faces.js?v=1.1.0';
+import { normalizePhoto } from './faces.js?v=1.2.0';
 
 const STEPS = ['👁 사진에서 <b>왼쪽 눈</b> 가운데를 누르세요', '👁 이제 <b>오른쪽 눈</b> 가운데를 누르세요', '👄 마지막으로 <b>입</b> 가운데를 누르세요', '✅ 점을 끌어서 고칠 수 있어요. 다 됐으면 <b>다음</b>'];
 const COLORS = ['#38e1ff', '#38e1ff', '#ff4d8d'];

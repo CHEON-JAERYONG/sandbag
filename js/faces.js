@@ -88,6 +88,14 @@ export async function buildFace(rec) {
   // 머리 꼭대기(가운데 줄에서 처음 보이는 곳)
   let topV = 0.1;
   for (let y = 0; y < H; y++) { let hit = false; for (let x = Math.round(W * 0.4); x < W * 0.6; x += 2) if (all[(y * W + x) * 4 + 3] > 128) { hit = true; break; } if (hit) { topV = y / H; break; } }
+  // 머리(정수리~턱) 덩어리의 가로 가운데
+  let sx = 0, sw = 0;
+  const eyeY = (rec.eyeL[1] + rec.eyeR[1]) / 2;
+  // 턱 끝: 기본 묶음은 사진에서 찍어 둔 값, 게임에서 추가한 얼굴은 눈·입 거리로 어림
+  const chinV = rec.chin ? rec.chin[1] : Math.min(0.95, rec.mouth[1] + 0.48 * (rec.mouth[1] - eyeY));
+  const y0 = Math.round(topV * H), y1 = Math.round(chinV * H);
+  for (let y = y0; y < y1; y += 2) for (let x = 0; x < W; x += 2) { const a = all[(y * W + x) * 4 + 3]; if (a > 100) { sx += x * a; sw += a; } }
+  const centerU = sw ? sx / sw / W : 0.5;
   const sk1 = avgColor(g, (rec.eyeL[0] - 0.04) * W, (rec.eyeL[1] + 0.1) * H, 0.08 * W, 0.06 * H);
   const sk2 = avgColor(g, (rec.eyeR[0] - 0.04) * W, (rec.eyeR[1] + 0.1) * H, 0.08 * W, 0.06 * H);
   let skin = sk1.map((v, i) => (v + sk2[i]) / 2);
@@ -101,7 +109,7 @@ export async function buildFace(rec) {
   return {
     id: rec.id, name: rec.name || '샌드백', src: rec.src || 'pack', rec,
     eyeL: rec.eyeL, eyeR: rec.eyeR, mouth: rec.mouth, mask: rec.mask || [0.5, 0.48, 0.28, 0.42],
-    skin: hex(skin), hair: hex(hair), tex, thumb: rec.img, alphaAt, topV
+    skin: hex(skin), hair: hex(hair), tex, thumb: rec.img, alphaAt, topV, centerU, chinV
   };
 }
 

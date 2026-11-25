@@ -1,16 +1,16 @@
 // 쿵쾅 샌드백 — 화면 흐름 · 조작 · 타격 처리 · 뎀프시롤 · KO/라운드 · 온라인(모두 같은 체육관)
 import * as THREE from '../vendor/three.module.min.js';
-import { createStage, CAM_BASE, CAM_LOOK, CAM_KO, LOOK_KO } from './stage.js?v=1.1.0';
-import { Dummy, headToUv, cartoonBody } from './dummy.js?v=1.1.0';
-import { Attacker } from './attacker.js?v=1.1.0';
-import { FX } from './fx.js?v=1.1.0';
-import { Sound, hasKoreanVoice } from './sound.js?v=1.1.0';
-import { Net, rid } from './net.js?v=1.1.0';
-import * as Faces from './faces.js?v=1.1.0';
-import { openEditor } from './editor.js?v=1.1.0';
-import { TOOLS, TOOL_IDS, ICON, LINES } from './tools.js?v=1.1.0';
+import { createStage, CAM_BASE, CAM_LOOK, CAM_KO, LOOK_KO } from './stage.js?v=1.2.0';
+import { Dummy, headToUv, cartoonBody } from './dummy.js?v=1.2.0';
+import { Attacker } from './attacker.js?v=1.2.0';
+import { FX } from './fx.js?v=1.2.0';
+import { Sound, hasKoreanVoice } from './sound.js?v=1.2.0';
+import { Net, rid } from './net.js?v=1.2.0';
+import * as Faces from './faces.js?v=1.2.0';
+import { openEditor } from './editor.js?v=1.2.0';
+import { TOOLS, TOOL_IDS, ICON, LINES } from './tools.js?v=1.2.0';
 
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const HP_MAX = 1500;
 const $ = id => document.getElementById(id);
 const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -182,7 +182,7 @@ const FXT = {
         dummy.addBruise(uv, 0.055, 0.2);
         dummy.addSwell(side, 0.045);
         const e = side < 0 ? dummy.u.eyeL.value : dummy.u.eyeR.value;
-        if (Math.hypot(uv[0] - e.x, uv[1] - e.y) < 0.09) dummy.addBlackEye(side, 0.3);
+        if (Math.hypot(uv[0] - e.x, uv[1] - e.y) < 0.09 * fk()) dummy.addBlackEye(side, 0.3);
         return LINES.face.concat(LINES.heavy);
       }
       if (z === 'top') { dummy.express({ shut: 1, mode: 1, mO: 0.5 }, 0.3); return LINES.light; }
@@ -436,7 +436,8 @@ function airPoint(e) {
 }
 const camPos = () => stage.camera.getWorldPosition(new THREE.Vector3());
 // 머리 꼭대기/이마 같은 정해진 자리 (얼굴 사진 기준 u,v)
-const headSpot = (u, v) => dummy.headSpotUV(clamp(u, 0.25, 0.75), clamp(v, 0.02, 0.95));
+const headSpot = (u, v) => dummy.headSpotUV(clamp(u, 0.2, 0.8), clamp(v, 0.02, 0.95));
+const fk = () => dummy.fsc || 1;   // 얼굴 크기(게임에서 추가한 얼굴 = 1)
 const topV = () => (dummy.topV ?? 0.08);
 const uOf = t => t && t.part === 'head' ? headToUv(t.lp)[0] : 0.5;
 const crit = () => Math.random() < 0.1;
@@ -470,7 +471,7 @@ function doPunch(t, e) {
   const huv = t.part === 'head' ? headToUv(t.lp) : null;
   if (z === 'face' && huv[1] > dummy.u.mouthP.value.y + 0.02) kind = 'upper';
   else if (z === 'gut' || z === 'low' || z === 'leg') kind = 'body';
-  else if (huv ? Math.abs(huv[0] - 0.5) > 0.17 : Math.abs(t.lp.x) > 0.5) kind = 'hook';
+  else if (huv ? Math.abs(huv[0] - dummy.u.fC.value.x) > 0.17 * fk() : Math.abs(t.lp.x) > 0.5) kind = 'hook';
   const side = kind === 'hook' || kind === 'body' ? (t.lp.x > 0 ? 1 : -1) : 0;
   const lp = t.lp.clone(), part = t.part;
   atk.punch(t.point, {
@@ -500,7 +501,8 @@ function doSlap(t, e) {
   if (!target || target.part !== 'head') {
     const r = stage.renderer.domElement.getBoundingClientRect();
     const sx = (e.clientX - r.left) / r.width < 0.5 ? -1 : 1;
-    target = headSpot(0.5 + sx * 0.17, 0.63);
+    const fu = dummy.faceUV(sx * 0.17, 0.18);   // 볼
+    target = headSpot(fu[0], fu[1]);
   }
   const side = target.lp.x >= 0 ? 1 : -1;
   atk.slap(target.point, side, () => {
@@ -519,7 +521,7 @@ function doKnuckle(t) {
 }
 function doFlick(t) {
   const u = t && t.part === 'head' ? clamp(uOf(t), 0.4, 0.6) : 0.5;
-  const target = headSpot(u, Math.max(topV() + 0.16, dummy.u.eyeL.value.y - 0.13));
+  const target = headSpot(u, Math.max(topV() + 0.16, dummy.u.eyeL.value.y - 0.13 * fk()));
   atk.flick(target.point, () => {
     const c = crit();
     myHit({ tool: 'flick', part: 'head', lp: target.lp, dir: V(0, 0.25, -1).normalize(), power: c ? 2.6 : 2.0, dmg: rand(8, 12) * (c ? 1.8 : 1), crit: c });
@@ -651,7 +653,7 @@ function dempseyHook(auto) {
   if (ok) Sound.play('whoosh', { p: 0.7, vol: 0.6 });
 }
 function finisher() {
-  const target = headSpot(0.5, Math.min(0.9, dummy.u.mouthP.value.y + 0.1));
+  const target = headSpot(dummy.u.mouthP.value.x, Math.min((dummy.chinV ?? 0.92) - 0.02, dummy.u.mouthP.value.y + 0.1 * fk()));
   atk.punch(target.point, {
     side: 1, kind: 'upper', speed: 0.8, onImpact: () => {
       myHit({ tool: 'finish', part: 'head', lp: target.lp, dir: V(0, 0.8, -0.6).normalize(), power: 9, dmg: 160, crit: true });

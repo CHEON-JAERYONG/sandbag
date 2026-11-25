@@ -1,8 +1,8 @@
 // 무대: 렌더러 · 카메라 · 조명 · 복싱 링 배경
 import * as THREE from '../vendor/three.module.min.js';
 
-export const CAM_BASE = new THREE.Vector3(0, 5.05, 6.9);
-export const CAM_LOOK = new THREE.Vector3(0, 4.45, 0);
+export const CAM_BASE = new THREE.Vector3(0, 5.25, 6.3);
+export const CAM_LOOK = new THREE.Vector3(0, 4.65, 0);
 export const CAM_KO = new THREE.Vector3(0.6, 9.2, 3.2);
 export const LOOK_KO = new THREE.Vector3(0, 0.4, -4.6);
 

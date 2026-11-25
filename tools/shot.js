@@ -1,5 +1,6 @@
 // 화면 캡처 테스트: node tools/shot.js [보기모드]  → tools/shots/*.png
 // BASE=주소 (기본 http://127.0.0.1:8777/), KEY=열쇠(기본 faces-src/KEY.txt), W/H 화면 크기, MOBILE=1
+// OFFLINE=1 → 인터넷(MQTT) 막음: 진짜 열쇠로 KO까지 해도 실제 체육관 기록이 안 바뀜
 const { chromium } = require('playwright-core');
 const fs = require('fs'), path = require('path');
 const CHROME = process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
@@ -13,6 +14,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 (async () => {
   const browser = await chromium.launch({ executablePath: CHROME, headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] });
   const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: +(process.env.DPR || 1), isMobile: !!process.env.MOBILE, hasTouch: !!process.env.MOBILE });
+  if (process.env.OFFLINE) await ctx.addInitScript(() => {
+    window.WebSocket = class { constructor() { this.readyState = 3; setTimeout(() => { this.onerror && this.onerror(new Event('error')); this.onclose && this.onclose(new CloseEvent('close')); }, 50); } send() {} close() {} addEventListener() {} removeEventListener() {} };
+  });
   const page = await ctx.newPage();
   const errs = [];
   page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') errs.push(m.type() + ': ' + m.text()); });

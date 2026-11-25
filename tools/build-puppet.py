@@ -12,7 +12,10 @@ ROOT = os.path.join(os.path.dirname(__file__), '..')
 SRC = os.path.join(ROOT, 'faces-src')
 cfg = json.load(open(os.path.join(SRC, 'faces.json'), encoding='utf-8-sig'))
 MODEL = os.environ.get('MODEL', 'u2net_human_seg')
-session = new_session(MODEL)
+sessions = {}
+def sess(name):
+    if name not in sessions: sessions[name] = new_session(name)
+    return sessions[name]
 OUT = os.path.join(SRC, 'puppet'); os.makedirs(OUT, exist_ok=True)
 
 def imread(p):
@@ -20,13 +23,14 @@ def imread(p):
     return cv2.imdecode(data, cv2.IMREAD_COLOR)
 
 masks = {}
-def person_mask(path):
-    if path in masks: return masks[path]
+def person_mask(path, model=None):
+    model = model or MODEL
+    if (path, model) in masks: return masks[(path, model)]
     img = imread(path)
     ok, buf = cv2.imencode('.png', img)
-    m = remove(buf.tobytes(), session=session, only_mask=True, post_process_mask=True)
+    m = remove(buf.tobytes(), session=sess(model), only_mask=True, post_process_mask=(model == 'u2net_human_seg'))
     mask = cv2.imdecode(np.frombuffer(m, np.uint8), cv2.IMREAD_GRAYSCALE)
-    masks[path] = (img, mask)
+    masks[(path, model)] = (img, mask)
     return img, mask
 
 def largest_component(mask, seed=None):
@@ -35,8 +39,9 @@ def largest_component(mask, seed=None):
     if n <= 1: return mask
     if seed is not None and lab[seed[1], seed[0]] > 0: keep = lab[seed[1], seed[0]]
     else: keep = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
-    out = mask.copy(); out[lab != keep] = 0
-    return out
+    comp = (lab == keep).astype(np.uint8) * 255
+    comp = cv2.dilate(comp, np.ones((9, 9), np.uint8))   # 부드러운 테두리(머리카락 끝)는 살림
+    return (mask.astype(np.uint16) * comp // 255).astype(np.uint8)
 
 def data_url(img, ext, q=88):
     if ext == 'webp': ok, buf = cv2.imencode('.webp', img, [cv2.IMWRITE_WEBP_QUALITY, q])
@@ -53,7 +58,15 @@ mask = largest_component(mask, tuple(J['chest']))
 # 머리 지우기(머리는 얼굴 사진 카드로 따로 붙임)
 cx, cy, rx, ry = B['headErase']
 yy, xx = np.mgrid[0:mask.shape[0], 0:mask.shape[1]]
-head = (((xx - cx) / rx) ** 2 + ((yy - cy) / ry) ** 2 <= 1) & (yy < B['neckY'])
+inE = ((xx - cx) / rx) ** 2 + ((yy - cy) / ry) ** 2 <= 1
+if 'collar' in B:
+    # 깃 선(원본 px 점들) 위쪽을 지움 → 몸 윗선이 곧은 선이 아니라 목이 들어가는 U자 깃 모양
+    cp = np.array(B['collar'], float)
+    cyx = np.interp(np.arange(mask.shape[1]), cp[:, 0], cp[:, 1])
+    inX = (xx >= cp[0, 0]) & (xx <= cp[-1, 0])
+    head = (inE | inX) & (yy < cyx[None, :])
+else:
+    head = inE & (yy < B['neckY'])
 mask[head] = 0
 mask = cv2.GaussianBlur(mask, (3, 3), 0)
 ys, xs = np.where(mask > 20)
@@ -88,41 +101,72 @@ cv2.imwrite(os.path.join(OUT, 'depth.png'), depth)
 joints = {k: [int(v[0] - x0), int(v[1] - y0)] for k, v in J.items()}
 body = {'img': data_url(torso, 'webp', 90), 'arm': data_url(arm_rgba, 'webp', 92), 'depth': data_url(depth, 'png'), 'w': int(x1 - x0), 'h': int(y1 - y0), 'joints': joints,
         'floorY': int(B['floorY'] - y0)}
+if 'neckBox' in B:  # 3D 목 자리: [가운데 x, 반폭, 깃 맨 아래 y] (원본 px → 몸 그림 px)
+    nb = B['neckBox']; body['neckBox'] = [int(nb[0] - x0), int(nb[1]), int(nb[2] - y0)]
 print('몸:', body['w'], 'x', body['h'], '관절', len(joints))
 
 # ---------------- 머리(얼굴 사진들) ----------------
+# 얼굴마다 faces.json에: keep(머리 윤곽 다각형, 원본 px — 위는 넉넉히, 아래는 턱선), add(AI가 놓친 머리카락), chin(턱 끝)
+# 턱 아래(목·옷)는 버림 → 게임에서 3D 목이 대신함. 머리카락 꼭대기~턱이 그림 안에 꼭 들어가게 얼굴마다 크기를 맞춤.
 W = 512
+TOP, HEADH = 0.05, 0.80        # 머리 꼭대기 위치, 꼭대기~턱 높이(그림 높이 대비)
 faces = []
+
+def poly_fill(pts, shape, M=None, feather=0):
+    P = np.array(pts, float)
+    if M is not None: P = np.c_[P, np.ones(len(P))] @ M.T
+    m = np.zeros(shape, np.uint8)
+    cv2.fillPoly(m, [np.round(P * 8).astype(np.int32)], 255, lineType=cv2.LINE_AA, shift=3)
+    m = m.astype(np.float32) / 255
+    return cv2.GaussianBlur(m, (0, 0), feather) if feather > 0 else m
+
 for f in cfg['faces']:
-    img, mask = person_mask(os.path.join(cfg['source'], f['file']))
+    img, mask = person_mask(os.path.join(cfg['source'], f['file']), f.get('model', 'birefnet-portrait'))
+    mask = mask.copy()
     if f.get('seg') is False: mask = np.full(mask.shape, 255, np.uint8)
     eL, eR, mo = np.array(f['eL'], float), np.array(f['eR'], float), np.array(f['m'], float)
     c = (eL + eR) / 2; e = eR - eL; de = np.hypot(*e)
-    perp = np.array([-e[1], e[0]]) / de
-    dm = np.dot(mo - c, perp)
-    s = 0.26 * W / max(de, dm / 1.08)
     ang = np.degrees(np.arctan2(e[1], e[0]))
-    M = cv2.getRotationMatrix2D((float(c[0]), float(c[1])), ang, s)
-    M[0, 2] += W / 2 - c[0]; M[1, 2] += 0.45 * W - c[1]
+    perp = np.array([-e[1], e[0]]) / de
+    chin = np.array(f['chin'], float) if 'chin' in f else mo + 0.48 * np.dot(mo - c, perp) * perp
+    # 머리 범위(눈을 수평으로 돌린 좌표)로 크기·위치 정하기
+    R = cv2.getRotationMatrix2D((float(c[0]), float(c[1])), ang, 1.0)
+    hm = mask.astype(np.float32) / 255
+    if 'keep' in f:
+        hm = hm * poly_fill(f['keep'], mask.shape)
+        if 'add' in f: hm = np.maximum(hm, poly_fill(f['add'], mask.shape) * poly_fill(f['keep'], mask.shape))
+    ys, xs = np.where(hm > 0.5)
+    rx_ = R[0, 0] * xs + R[0, 1] * ys + R[0, 2]; ry_ = R[1, 0] * xs + R[1, 1] * ys + R[1, 2]
+    chin_r = R @ np.array([chin[0], chin[1], 1.0])
+    top_r = float(np.percentile(ry_, 0.2)); x0_r, x1_r = float(np.percentile(rx_, 0.3)), float(np.percentile(rx_, 99.7))
+    s = min(HEADH * W / (chin_r[1] - top_r), 0.94 * W / (x1_r - x0_r))
+    # 원본 → (눈 수평 회전 R) → 배율 s → 머리 가로 가운데를 0.5, 꼭대기를 TOP에
+    M = np.array([[s * R[0, 0], s * R[0, 1], s * R[0, 2] + W / 2 - s * (x0_r + x1_r) / 2],
+                  [s * R[1, 0], s * R[1, 1], s * R[1, 2] + TOP * W - s * top_r]])
     rgb = cv2.warpAffine(img, M, (W, W), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
-    al = cv2.warpAffine(mask, M, (W, W), flags=cv2.INTER_LINEAR, borderValue=0)
-    # 머리 주변만 (다른 사람·어깨 빼기): 넉넉한 타원 + 사용자 조정 타원(mask)을 합침
-    yy, xx = np.mgrid[0:W, 0:W] / W
-    mk = f.get('mask', [0.5, 0.48, 0.28, 0.42])
-    kx, ky = f.get('ellK', [1.32, 1.18]) if f.get('seg') is not False else [1.0, 1.0]
-    ell = ((xx - mk[0]) / (mk[2] * kx)) ** 2 + ((yy - (mk[1] - (0.04 if f.get('seg') is not False else 0))) / (mk[3] * ky)) ** 2
-    keep = np.clip((1.0 - ell) / 0.12, 0, 1)
-    # 목 아래는 서서히 지움
-    neck = np.clip((0.97 - yy) / 0.08, 0, 1)
-    al = (al.astype(float) * keep * neck).astype(np.uint8)
-    al = largest_component(al, (W // 2, int(0.5 * W)))
-    al = cv2.GaussianBlur(al, (3, 3), 0)
+    al = cv2.warpAffine(mask, M, (W, W), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE).astype(np.float32) / 255
+    if 'keep' in f:
+        keep = poly_fill(f['keep'], (W, W), M, 1.6)
+        al = al * keep
+        if 'add' in f: al = np.maximum(al, poly_fill(f['add'], (W, W), M, 2.5) * keep)
+    else:  # 예전 방식(타원)
+        yy, xx = np.mgrid[0:W, 0:W] / W
+        mk = f.get('mask', [0.5, 0.48, 0.28, 0.42])
+        ell = ((xx - mk[0]) / (mk[2] * 1.8)) ** 2 + ((yy - mk[1] + 0.04) / (mk[3] * 1.5)) ** 2
+        al = al * np.clip((1.0 - ell) / 0.12, 0, 1)
+    al = (np.clip(al, 0, 1) * 255).astype(np.uint8)
+    tf = lambda p: [round(float(M[0, 0] * p[0] + M[0, 1] * p[1] + M[0, 2]) / W, 4), round(float(M[1, 0] * p[0] + M[1, 1] * p[1] + M[1, 2]) / W, 4)]
+    mu = tf(mo)
+    al = largest_component(al, (int(mu[0] * W), int(mu[1] * W)))
+    # 테두리 색 번짐 줄이기
+    inside = (al > 140).astype(np.uint8)
+    fillc = cv2.inpaint(rgb, 255 - inside * 255, 3, cv2.INPAINT_TELEA)
+    rgb = np.where(inside[:, :, None] > 0, rgb, fillc)
     rgba = cv2.cvtColor(rgb, cv2.COLOR_BGR2BGRA); rgba[:, :, 3] = al
     cv2.imwrite(os.path.join(OUT, 'head-%s.png' % f['id']), rgba)
-    tf = lambda p: [round(float(M[0, 0] * p[0] + M[0, 1] * p[1] + M[0, 2]) / W, 4), round(float(M[1, 0] * p[0] + M[1, 1] * p[1] + M[1, 2]) / W, 4)]
     faces.append({'id': 'p-' + f['id'], 'name': f['name'], 'img': data_url(rgba, 'webp', 90), 'alpha': True,
-                  'eyeL': tf(eL), 'eyeR': tf(eR), 'mouth': tf(mo), 'mask': mk})
-    print('머리', f['id'], '눈', faces[-1]['eyeL'], faces[-1]['eyeR'])
+                  'eyeL': tf(eL), 'eyeR': tf(eR), 'mouth': mu, 'chin': tf(chin), 'mask': f.get('mask', [0.5, 0.5, 0.25, 0.38])})
+    print('머리', f['id'], '눈', faces[-1]['eyeL'], faces[-1]['eyeR'], '입', mu, '턱', faces[-1]['chin'], '배율', round(s, 3))
 
 json.dump({'v': 2, 'body': body, 'faces': faces}, open(os.path.join(SRC, 'pack-plain.json'), 'w', encoding='utf-8'), ensure_ascii=False)
 print('저장: faces-src/pack-plain.json')
