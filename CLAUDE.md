@@ -4,7 +4,8 @@
 - 실제 주소: https://cheon-jaeryong.github.io/sandbag/  (GitHub Pages, `main` 루트)
 - 저장소: https://github.com/CHEON-JAERYONG/sandbag (공개)
 - **친구 얼굴이 보이는 링크 = 주소 + `#k=열쇠`** (열쇠는 `faces-src/KEY.txt`, 깃 제외). 열쇠 없이 열면 만화 얼굴 + 공개 체육관.
-- 현재 버전: v1.1.0 (2026-11-24)
+- 현재 버전: v1.2.0 (2026-11-25)
+  - v1.2.0 사용자 요청 "얼굴도 이미지 말고 몸처럼 AI로(자연스럽게)" → 머리를 BiRefNet으로 머리카락 윤곽대로 오리고, **턱선 아래(목·옷)는 버리고 3D 목**이 깃 속에서 턱 뒤까지 이어지게. 몸 윗선은 곧은 선 대신 **U자 깃**. (곧은 선 + 목 없음 = '머리가 떠 보임'이 원인이었음)
   - v1.1.0 사용자 요청 "샌드백 말고 사람이 맞는 것처럼, 얼굴 더 잘 보이게, 사진 속 인물 그대로(AI 영상처럼)" → 3D 샌드백 인형을 버리고 **사진 인형(포토 퍼펫)**으로 바꿈. AI 영상 생성은 유료/대형 모델이라 불가 → 무료 rembg로 배경을 지우고 사진 자체를 뼈대로 휘게 함(사용자에게 설명함).
   - v1.0.1: 체육관 기록 초기화(`reset` 상태) 받기
 
@@ -23,7 +24,7 @@
 |---|---|
 | `index.html`, `style.css` | 화면(위: 체력바·참가자·설정 / 아래: 도구 8개·뎀프시·필살 / 시작창·설정창) |
 | `js/main.js` | 전체 흐름: 조작(탭·꼬집기 끌기·간지럼 누르기), 도구별 반응표 `FXT`, `myHit`→`impact`, 콤보·게이지, KO/라운드(얼굴 교대), 뎀프시롤 `D`, 카메라, 온라인 처리 |
-| `js/dummy.js` | **사진 인형**: 몸 사진 2층(몸통 `torso` + 앞에 있는 팔 `arm`, 팔 뒤는 메워 둠)을 격자로 만들고 뼈대 12개(골반·허리·가슴·목·허벅지/정강이/발×2·위팔·아래팔) 가중치로 CPU에서 휘게 함. 다리는 발을 바닥에 둔 2관절 IK(무릎 풀리면 바깥으로 굽음). 두께는 투명도에서 거리변환. 머리는 얼굴 사진 카드(볼록한 판, 투명한 곳 버림) + 셰이더 표정(찡그림·`><`/X/^^/소용돌이·눈물·멍·손자국·홍조). 물리: 발 기준 흔들림/KO 때 뒤로 쓰러짐(`B`), 허리(`W`), 머리(`H`), 무릎(`C`), 팔 반사 자세(`flinch`: face 막기·gut 배 움켜쥐기·head 머리 감싸기). 좌표: 몸은 '쉬는 자세' 좌표(`lp`, `toRest`), 머리는 카드 좌표(`headToUv`). `spot('gut'|'chest'|'sideL'|'sideR'|'thigh')`, `headSpotUV(u,v)`. 열쇠 없으면 `cartoonBody()` |
+| `js/dummy.js` | **사진 인형** (v1.2: 머리 볼록함 `DOME`은 얼굴마다 정수리~턱에 맞춤, 3D 목 `neckMesh`/`NECK`(몸 묶음 `neckBox`로 자리), 턱 높이 `CHIN_UP`, 얼굴 크기 `fsc`=눈 사이·눈~입 거리/0.26 → 셰이더 효과·코 굴곡·`faceUV()` 때리는 자리를 이 크기에 맞춤): 몸 사진 2층(몸통 `torso` + 앞에 있는 팔 `arm`, 팔 뒤는 메워 둠)을 격자로 만들고 뼈대 12개(골반·허리·가슴·목·허벅지/정강이/발×2·위팔·아래팔) 가중치로 CPU에서 휘게 함. 다리는 발을 바닥에 둔 2관절 IK(무릎 풀리면 바깥으로 굽음). 두께는 투명도에서 거리변환. 머리는 얼굴 사진 카드(볼록한 판, 투명한 곳 버림) + 셰이더 표정(찡그림·`><`/X/^^/소용돌이·눈물·멍·손자국·홍조). 물리: 발 기준 흔들림/KO 때 뒤로 쓰러짐(`B`), 허리(`W`), 머리(`H`), 무릎(`C`), 팔 반사 자세(`flinch`: face 막기·gut 배 움켜쥐기·head 머리 감싸기). 좌표: 몸은 '쉬는 자세' 좌표(`lp`, `toRest`), 머리는 카드 좌표(`headToUv`). `spot('gut'|'chest'|'sideL'|'sideR'|'thigh')`, `headSpotUV(u,v)`. 열쇠 없으면 `cartoonBody()` |
 | `js/attacker.js` | 1인칭: 권투 글러브 2개(직선·훅·어퍼·바디), 맨손(싸대기·꿀밤·딱밤·꼬집기·간지럼 — 손가락 관절), 발차기 다리, 뿅망치. 팔/다리는 화면 오른쪽 아래 밖에서 들어오게 `armQ` |
 | `js/fx.js` | 섬광·충격파·땀방울·집중선·잔상·의성어(퍽!)·데미지 숫자·말풍선·화면 흔들림 |
 | `js/sound.js` | 효과음 전부 WebAudio 합성 + 브라우저 한국어 음성(speechSynthesis)으로 비명 |
@@ -41,7 +42,7 @@
 
 ## 얼굴 바꾸기 (나중에 이미지만 바꾸고 싶을 때)
 1. **게임 안에서**(쉬움): ⚙️ 설정 → 얼굴 추가 → 사진 → 눈·눈·입 → 저장. 같은 링크 모두에게 바로 보임(배포 불필요). ✕로 지움.
-2. **기본 묶음(몸+머리) 다시 만들기**: `faces-src/faces.json` = { source: 사진 폴더, body: {file, joints(원본 px: pelvis spine chest neck shL elL wrL haL shR hipL knL anL toL hipR knR anR toR — L/R은 **화면 기준 왼/오른쪽**), armPoly(앞에 있는 팔 윤곽), headErase, neckY, floorY}, faces: [{file,id,name,eL,eR,m,mask, seg:false(배경 못 지우는 사진은 타원), ellK}] }
+2. **기본 묶음(몸+머리) 다시 만들기**: `faces-src/faces.json` = { source: 사진 폴더, body: {file, joints(원본 px: pelvis spine chest neck shL elL wrL haL shR hipL knL anL toL hipR knR anR toR — L/R은 **화면 기준 왼/오른쪽**), armPoly(앞에 있는 팔 윤곽), headErase, neckY, **collar**(깃 선 점들 — 이 위를 지움, 가운데가 목 들어가는 U자), **neckBox**[3D 목 가운데 x, 반폭, 깃 맨 아래 y], floorY}, faces: [{file,id,name,eL,eR,m, **keep**(머리 윤곽 다각형: 위는 넉넉히·아래는 턱선 — 턱 아래·옆 사람 빼기), **add**(AI가 놓친 머리카락, 예: 밤 사진 b 왼쪽 위), **chin**(턱 끝), model(기본 birefnet-portrait, a는 u2net_human_seg)}] } — 좌표는 모두 원본 사진 px. 머리 그림 크기는 자동(꼭대기 0.05, 턱 0.85, 가로 가운데). 사진 밖(c 왼뺨)은 가장자리 색으로 채움
    → `<venv>/python tools/build-puppet.py` (rembg 필요: `python -m venv venv && venv/Scripts/pip install "rembg[cpu]"`, 첫 실행 때 모델 자동 다운로드 — 이번엔 scratchpad에 venv 만들었음, 없으면 다시 만들기) → `faces-src/pack-plain.json` + `faces-src/puppet/*.png`(확인용)
    → `node tools/make-pack.js` (pack-plain.json을 KEY.txt 열쇠로 암호화 → faces/pack.bin) → commit/push. 관절·팔 윤곽은 사진에 격자 그려서 읽음. (`normalize-faces.ps1`은 옛 방식, 이제 안 씀)
 
@@ -56,11 +57,12 @@ node tools/test-fall.js                         # KO 쓰러짐·배 맞기 자�
 # 실제 주소: BASE=https://cheon-jaeryong.github.io/sandbag/ node tools/test-online.js
 ```
 캡처는 `tools/shots/`(깃 제외) — 직접 열어 눈으로 확인. 헤드리스는 swiftshader라 느림(실제 기기는 훨씬 부드러움).
-`shot.js`를 진짜 열쇠로 돌리면 실제 체육관 라운드/KO 기록이 바뀜 → KO 테스트는 `KEY=아무거나`로. 바뀌었으면 `node tools/reset-gym.js`(실제 주소에서 라운드1·KO0으로).
+`shot.js`를 진짜 열쇠로 돌리면 실제 체육관 라운드/KO 기록이 바뀜 → **`OFFLINE=1`**(인터넷 막음, 진짜 얼굴로 KO까지 안전) 또는 `KEY=아무거나`. 바뀌었으면 `node tools/reset-gym.js`(실제 주소에서 라운드1·KO0으로).
 버전 올릴 때: `js/main.js`의 `VERSION` + `index.html`의 `?v=` 2곳 + **모든 js의 import 경로 `?v=`** (한 줄: `for f in js/*.js; do sed -i -E "s#from '\./([a-z]+)\.js(\?v=[0-9.]+)?'#from './\1.js?v=새버전'#g" $f; done`) — 섞여서 옛 파일을 읽으면 깨짐.
 
 ## 디버그
 콘솔 `window.__sb` → `G`(상태), `D`(뎀프시), `dummy`, `atk`, `net`, `faces`, `selectTool()`, `setDempsey()`, `startSuper()`, `myHit()`.
 
 ## 다음 아이디어
+- 3D 목이 조금 단순(원통+음영) — 더 자연스럽게 하려면 몸 사진 쪽 목 그늘/깃 안쪽 그리기.
 - 도구 추가(물풍선·간지럼 깃털·전기), 맞은 횟수 랭킹 저장, 표정 사진 여러 장(맞을 때 다른 사진으로), 카톡 미리보기 이미지(og.png), 효과음 다양화.
