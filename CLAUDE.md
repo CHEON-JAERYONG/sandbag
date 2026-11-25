@@ -43,7 +43,7 @@
 ## 얼굴 바꾸기 (나중에 이미지만 바꾸고 싶을 때)
 1. **게임 안에서**(쉬움): ⚙️ 설정 → 얼굴 추가 → 사진 → 눈·눈·입 → 저장. 같은 링크 모두에게 바로 보임(배포 불필요). ✕로 지움.
 2. **기본 묶음(몸+머리) 다시 만들기**: `faces-src/faces.json` = { source: 사진 폴더, body: {file, joints(원본 px: pelvis spine chest neck shL elL wrL haL shR hipL knL anL toL hipR knR anR toR — L/R은 **화면 기준 왼/오른쪽**), armPoly(앞에 있는 팔 윤곽), headErase, neckY, **collar**(깃 선 점들 — 이 위를 지움, 가운데가 목 들어가는 U자), **neckBox**[3D 목 가운데 x, 반폭, 깃 맨 아래 y], floorY}, faces: [{file,id,name,eL,eR,m, **keep**(머리 윤곽 다각형: 위는 넉넉히·아래는 턱선 — 턱 아래·옆 사람 빼기), **add**(AI가 놓친 머리카락, 예: 밤 사진 b 왼쪽 위), **chin**(턱 끝), model(기본 birefnet-portrait, a는 u2net_human_seg)}] } — 좌표는 모두 원본 사진 px. 머리 그림 크기는 자동(꼭대기 0.05, 턱 0.85, 가로 가운데). 사진 밖(c 왼뺨)은 가장자리 색으로 채움
-   → `<venv>/python tools/build-puppet.py` (rembg 필요: `python -m venv venv && venv/Scripts/pip install "rembg[cpu]"`, 첫 실행 때 모델 자동 다운로드 — 이번엔 scratchpad에 venv 만들었음, 없으면 다시 만들기) → `faces-src/pack-plain.json` + `faces-src/puppet/*.png`(확인용)
+   → `<venv>/python tools/build-puppet.py` (rembg 필요: `python -m venv venv && venv/Scripts/pip install "rembg[cpu]"`, 첫 실행 때 모델 자동 다운로드 → `C:/Users/admin/.rembg/models`. venv는 `C:/Users/admin/AppData/Local/Temp/claude/838757565bfd39b2/5b19ad51-130e-4c43-8ee9-aaf36c0beeff/scratchpad/venv` — 임시 폴더라 지워졌으면 다시 만들기) → `faces-src/pack-plain.json` + `faces-src/puppet/*.png`(확인용)
    → `node tools/make-pack.js` (pack-plain.json을 KEY.txt 열쇠로 암호화 → faces/pack.bin) → commit/push. 관절·팔 윤곽은 사진에 격자 그려서 읽음. (`normalize-faces.ps1`은 옛 방식, 이제 안 씀)
 
 ## 테스트
